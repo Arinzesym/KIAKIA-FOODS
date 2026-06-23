@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KiaKia Foods OMS</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6fbf4;
+      --surface: #ffffff;
+      --surface-secondary: #f3faf2;
+      --text: #10201b;
+      --muted: #546758;
+      --brand: #3a8d4b;
+      --brand-dark: #163a1d;
+      --border: #d7e4d5;
+      --radius: 28px;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top left, #eafdff 0%, #f6fbf4 35%, #f0f7ee 100%);
+      color: var(--text);
+      line-height: 1.5;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    header {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 24px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 24px;
+    }
+
+    .logo-link {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    .logo-svg {
+      width: 48px;
+      height: 48px;
+      flex-shrink: 0;
+    }
+
+    .logo-copy {
+      display: grid;
+      line-height: 1.1;
+    }
+
+    .logo-copy .brand {
+      font-size: 1.05rem;
+      font-weight: 800;
+    }
+
+    .logo-copy .tagline {
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #557461;
+    }
+
+    nav {
+      display: flex;
+      gap: 18px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    nav a {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-decoration: none;
+    }
+
+    nav a:hover {
+      color: var(--brand-dark);
+    }
+
+    main {
+      max-width: 1240px;
+      margin: auto;
+      padding: 0 28px 40px;
+    }
+
+    .hero {
+      display: grid;
+      gap: 28px;
+      padding: 24px 0 24px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(2.5rem, 5vw, 3.8rem);
+      line-height: 1.02;
+      letter-spacing: -0.05em;
+    }
+
+    .hero p {
+      max-width: 760px;
+      font-size: 1.05rem;
+      color: var(--muted);
+    }
+
+    .grid-cards {
+      display: grid;
+      gap: 20px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-top: 16px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: 0 24px 65px rgba(21, 49, 26, 0.08);
+    }
+
+    .card h2 {
+      margin: 0 0 10px;
+      font-size: 1.05rem;
+    }
+
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.96rem;
+    }
+
+    .panel {
+      margin-top: 36px;
+      display: grid;
+      gap: 28px;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 14px;
+    }
+
+    .panel-header h2 {
+      margin: 0;
+      font-size: 1.8rem;
+    }
+
+    .panel-header p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .content-grid {
+      display: grid;
+      gap: 24px;
+      grid-template-columns: 1.8fr 1fr;
+    }
+
+    .box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 26px;
+      box-shadow: 0 20px 60px rgba(21, 49, 26, 0.06);
+    }
+
+    .box-full {
+      grid-column: 1 / -1;
+    }
+
+    .form-row {
+      display: grid;
+      gap: 16px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: grid;
+      gap: 8px;
+      font-size: 0.92rem;
+      color: var(--muted);
+    }
+
+    input,
+    select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: #fdfdfb;
+      font: inherit;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.2s ease;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 4px rgba(58, 141, 75, 0.12);
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px 22px;
+      border: none;
+      border-radius: 999px;
+      background: var(--brand);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+      text-decoration: none;
+    }
+
+    .button:hover {
+      background: var(--brand-dark);
+      transform: translateY(-1px);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 100%;
+    }
+
+    thead {
+      background: var(--surface-secondary);
+    }
+
+    th,
+    td {
+      text-align: left;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.94rem;
+    }
+
+    th {
+      font-weight: 700;
+      color: #4f6d5e;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+    }
+
+    .status-new { background: #e6f5eb; color: #1e6d34; }
+    .status-confirmed { background: #f3f8ff; color: #1754a1; }
+    .status-sourcing { background: #fff3e2; color: #b25808; }
+    .status-delivery { background: #ede9ff; color: #5d3ebc; }
+
+    .runner-grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+
+    .runner-card {
+      background: #f7fff4;
+      border: 1px solid #d0e7d4;
+      border-radius: 24px;
+      padding: 22px;
+    }
+
+    .runner-card h3 {
+      margin: 0 0 12px;
+      font-size: 1rem;
+    }
+
+    .runner-card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.94rem;
+    }
+
+    .footer {
+      margin-top: 42px;
+      padding: 24px 0 24px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+
+    .help-box {
+      margin-top: 26px;
+      background: #f0f7ef;
+      border: 1px solid #cfe7d1;
+      border-radius: 24px;
+      padding: 20px 24px;
+      color: #2f5135;
+    }
+
+    @media (max-width: 840px) {
+      .content-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="#" class="logo-link">
+      <svg class="logo-svg" viewBox="0 0 520 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="leafBody" x1="20%" y1="0%" x2="80%" y2="100%">
+            <stop offset="0%" stop-color="#76C97D" />
+            <stop offset="60%" stop-color="#3A8D4B" />
+            <stop offset="100%" stop-color="#1F5E30" />
+          </linearGradient>
+          <linearGradient id="leafShine" x1="0%" y1="0%" x2="60%" y2="80%">
+            <stop offset="0%" stop-color="#B7E7B6" stop-opacity="0.6" />
+            <stop offset="100%" stop-color="#3A8D4B" stop-opacity="0" />
+          </linearGradient>
+          <filter id="shadow" x="-20%" y="-10%" width="150%" height="140%">
+            <feDropShadow dx="2" dy="4" stdDeviation="4" flood-color="#17441F" flood-opacity="0.25" />
+          </filter>
+        </defs>
+        <g transform="translate(10, 8)" filter="url(#shadow)">
+          <path d="M 80 8 Q 88 2 94 6 Q 90 12 84 14" fill="#C8E1B2" stroke="#79B77A" stroke-width="1" />
+          <path d="M 80 10 C 100 6, 128 18, 136 46 C 146 78, 136 110, 114 126 C 92 142, 58 140, 40 122 C 22 104, 20 72, 32 48 C 44 24, 62 14, 80 10 Z" fill="url(#leafBody)" stroke="#1F5E30" stroke-width="3" />
+          <path d="M 72 16 C 90 12, 114 26, 120 52 C 126 70, 120 92, 106 108" fill="url(#leafShine)" stroke="none" />
+          <path d="M 64 18 C 80 14, 104 28, 112 54" fill="none" stroke="#A1D99A" stroke-width="6" stroke-linecap="round" opacity="0.35" />
+          <path d="M 80 18 Q 78 70 70 128" stroke="#1F5E30" stroke-width="2.5" fill="none" stroke-linecap="round" opacity="0.7" />
+          <path d="M 75 42 Q 58 52 52 64" stroke="#1F5E30" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.6" />
+          <path d="M 73 62 Q 52 72 46 86" stroke="#1F5E30" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.5" />
+          <path d="M 72 82 Q 54 90 50 102" stroke="#1F5E30" stroke-width="1.3" fill="none" stroke-linecap="round" opacity="0.45" />
+          <path d="M 83 44 Q 104 52 110 64" stroke="#1F5E30" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.6" />
+          <path d="M 80 64 Q 102 72 108 84" stroke="#1F5E30" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.5" />
+          <circle cx="66" cy="68" r="7" fill="#0A2E13" />
+          <circle cx="94" cy="66" r="7" fill="#0A2E13" />
+          <circle cx="69" cy="65" r="2.5" fill="#FFF" />
+          <circle cx="97" cy="63" r="2.5" fill="#FFF" />
+          <path d="M 60 60 Q 67 55 74 59" stroke="#0A2E13" stroke-width="3" fill="none" stroke-linecap="round" />
+          <path d="M 88 58 Q 95 53 102 57" stroke="#0A2E13" stroke-width="3" fill="none" stroke-linecap="round" />
+          <path d="M 62 84 Q 80 98 100 83" stroke="#0A2E13" stroke-width="3" fill="none" stroke-linecap="round" />
+          <circle cx="56" cy="80" r="6" fill="#C8E1B2" opacity="0.4" />
+          <circle cx="106" cy="78" r="6" fill="#C8E1B2" opacity="0.4" />
+          <line x1="50" y1="96" x2="20" y2="78" stroke="#0A2E13" stroke-width="5" stroke-linecap="round" />
+          <circle cx="16" cy="75" r="8" fill="#0A2E13" />
+          <line x1="116" y1="90" x2="144" y2="72" stroke="#0A2E13" stroke-width="5" stroke-linecap="round" />
+          <circle cx="148" cy="69" r="8" fill="#0A2E13" />
+          <line x1="62" y1="138" x2="42" y2="166" stroke="#0A2E13" stroke-width="6" stroke-linecap="round" />
+          <ellipse cx="34" cy="170" rx="16" ry="8" fill="#F8FBF0" stroke="#0A2E13" stroke-width="2" />
+          <path d="M 20 168 Q 34 162 48 168" fill="#DDE7DC" stroke="none" />
+          <line x1="98" y1="136" x2="118" y2="162" stroke="#0A2E13" stroke-width="6" stroke-linecap="round" />
+          <ellipse cx="126" cy="166" rx="16" ry="8" fill="#F8FBF0" stroke="#0A2E13" stroke-width="2" />
+          <path d="M 112 164 Q 126 158 140 164" fill="#DDE7DC" stroke="none" />
+          <ellipse cx="78" cy="175" rx="52" ry="6" fill="#0B3617" opacity="0.14" />
+          <line x1="-12" y1="84" x2="10" y2="84" stroke="#0B3617" stroke-width="3.5" stroke-linecap="round" opacity="0.5" />
+          <line x1="-18" y1="100" x2="8" y2="100" stroke="#0B3617" stroke-width="3" stroke-linecap="round" opacity="0.35" />
+          <line x1="-10" y1="116" x2="10" y2="116" stroke="#0B3617" stroke-width="2.5" stroke-linecap="round" opacity="0.25" />
+        </g>
+        <text x="182" y="106" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="76" fill="#1A3F1D" letter-spacing="-2">Kia</text>
+        <text x="300" y="106" font-family="Georgia, 'Times New Roman', serif" font-weight="700" font-size="76" fill="#3A8D4B" letter-spacing="-2">Kia</text>
+        <circle cx="418" cy="92" r="9" fill="#B8DD9A" />
+        <text x="183" y="133" font-family="Georgia, 'Times New Roman', serif" font-weight="400" font-style="italic" font-size="20" fill="#3A8D4B" letter-spacing="1.5" opacity="0.9">foods</text>
+        <text x="330" y="138" font-family="Arial, Helvetica, sans-serif" font-weight="400" font-size="11" fill="#4B4B4B" letter-spacing="4.5">WE GO. YOU REST.</text>
+      </svg>
+      <div class="logo-copy">
+        <span class="brand">KiaKia Foods</span>
+        <span class="tagline">WE GO. YOU REST.</span>
+      </div>
+    </a>
+
+    <nav>
+      <a href="#hero">Home</a>
+      <a href="#orders-panel">Orders</a>
+      <a href="#runner-panel">Runner</a>
+      <a href="#edit-note">Edit</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="hero" id="hero">
+      <div>
+        <p style="text-transform: uppercase; letter-spacing: 0.25em; font-size: 0.88rem; color: #3a8d4b; font-weight: 700; margin: 0 0 12px;">Live internal operations</p>
+        <h1>Start using KiaKia Foods OMS today.</h1>
+        <p>Open this file in your browser and immediately add orders, track runner status, and preview the operational workflow. No install needed.</p>
+        <div style="margin-top: 24px;"><button class="button" type="button" onclick="document.getElementById('new-order-form').scrollIntoView({ behavior: 'smooth' })">Add a new order</button></div>
+      </div>
+      <div class="grid-cards">
+        <article class="card">
+          <h2>Order capture</h2>
+          <p>Enter WhatsApp orders, estate details, and delivery charges in one place.</p>
+        </article>
+        <article class="card">
+          <h2>Runner-ready</h2>
+          <p>See orders that need sourcing, confirm status, and keep runner info aligned.</p>
+        </article>
+        <article class="card">
+          <h2>Editable HTML</h2>
+          <p>This page is fully editable. Change labels, totals, or styling directly in the file.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel" id="orders-panel">
+      <div class="panel-header">
+        <div>
+          <p style="margin: 0; text-transform: uppercase; letter-spacing: 0.18em; color: #3a8d4b; font-size: 0.85rem; font-weight: 700;">Order list</p>
+          <h2 style="margin: 6px 0 0;">Orders currently in the system</h2>
+        </div>
+        <div style="color: var(--muted);">Orders are stored locally in your browser; refresh to keep the latest list.</div>
+      </div>
+      <div class="box box-full">
+        <table>
+          <thead>
+            <tr>
+              <th>Order ID</th>
+              <th>Customer</th>
+              <th>Estate</th>
+              <th>Status</th>
+              <th>Total</th>
+              <th>WhatsApp</th>
+            </tr>
+          </thead>
+          <tbody id="order-table-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel" id="new-order-form">
+      <div class="panel-header">
+        <div>
+          <p style="margin: 0; text-transform: uppercase; letter-spacing: 0.18em; color: #3a8d4b; font-size: 0.85rem; font-weight: 700;">Create order</p>
+          <h2 style="margin: 6px 0 0;">Add a new order for testing</h2>
+        </div>
+        <button class="button" onclick="resetForm()" type="button">Reset form</button>
+      </div>
+      <div class="content-grid">
+        <div class="box">
+          <div class="form-row">
+            <label>Customer name<input id="customerName" type="text" placeholder="e.g. Chinedu O." /></label>
+            <label>Phone<input id="customerPhone" type="text" placeholder="e.g. +2348012345678" /></label>
+          </div>
+          <div class="form-row">
+            <label>Estate<input id="customerEstate" type="text" placeholder="e.g. Banana Island" /></label>
+            <label>Address<input id="customerAddress" type="text" placeholder="e.g. House 12, Block A" /></label>
+          </div>
+          <div class="form-row">
+            <label>WhatsApp number<input id="customerWhatsapp" type="text" placeholder="e.g. +2348012345678" /></label>
+            <label>Status<select id="orderStatus"><option value="New">New</option><option value="Confirmed">Confirmed</option><option value="Market Sourcing">Market Sourcing</option><option value="Purchased">Purchased</option><option value="At Dispatch Point">At Dispatch Point</option></select></label>
+          </div>
+          <div class="form-row">
+            <label>Order total<input id="orderTotal" type="number" value="0" min="0" /></label>
+            <label>Service fee<input id="serviceFee" type="number" value="1200" min="0" /></label>
+          </div>
+          <div class="form-row">
+            <label>Delivery fee<input id="deliveryFee" type="number" value="1500" min="0" /></label>
+            <label>Additional charge<input id="additionalCharge" type="number" value="0" min="0" /></label>
+          </div>
+          <div style="margin-top: 14px;"><button class="button" type="button" onclick="addOrder()">Save order</button></div>
+          <div id="message" style="margin-top: 18px; color: #27542d; font-weight: 600;"></div>
+        </div>
+        <div class="box">
+          <h3 style="margin-top: 0;">Order summary</h3>
+          <p style="margin: 0 0 14px; color: var(--muted);">This section shows the expected order total and status immediately.</p>
+          <div style="display: grid; gap: 14px;">
+            <div style="display: flex; justify-content: space-between;"><span>Subtotal</span><strong id="viewSubtotal">₦0</strong></div>
+            <div style="display: flex; justify-content: space-between;"><span>Service fee</span><strong id="viewService">₦1,200</strong></div>
+            <div style="display: flex; justify-content: space-between;"><span>Delivery fee</span><strong id="viewDelivery">₦1,500</strong></div>
+            <div style="display: flex; justify-content: space-between;"><span>Additional</span><strong id="viewAdditional">₦0</strong></div>
+            <div style="padding: 18px; border-radius: 22px; background: #e8f9ee; display: flex; justify-content: space-between; align-items: center; font-weight: 700;"><span>Total</span><span id="viewTotal">₦0</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="runner-panel">
+      <div class="panel-header">
+        <div>
+          <p style="margin: 0; text-transform: uppercase; letter-spacing: 0.18em; color: #3a8d4b; font-size: 0.85rem; font-weight: 700;">Runner portal</p>
+          <h2 style="margin: 6px 0 0;">Sourcing view</h2>
+        </div>
+        <div style="color: var(--muted);">Tap the WhatsApp icon to open the customer chat quickly.</div>
+      </div>
+      <div class="runner-grid" id="runner-cards"></div>
+    </section>
+
+    <div class="help-box" id="edit-note">
+      <strong>How to edit:</strong> Open this file in any text editor and change the text, labels, or layout. The page is static HTML with embedded JavaScript, so it is easy to customize.
+    </div>
+
+    <footer class="footer">
+      Open this file in your browser to test it: <strong>kiakia-oms-template.html</strong>
+    </footer>
+  </main>
+
+  <script>
+    const orderTableBody = document.getElementById('order-table-body');
+    const runnerCards = document.getElementById('runner-cards');
+    const messageBox = document.getElementById('message');
+
+    const inputs = {
+      customerName: document.getElementById('customerName'),
+      customerPhone: document.getElementById('customerPhone'),
+      customerEstate: document.getElementById('customerEstate'),
+      customerAddress: document.getElementById('customerAddress'),
+      customerWhatsapp: document.getElementById('customerWhatsapp'),
+      orderStatus: document.getElementById('orderStatus'),
+      orderTotal: document.getElementById('orderTotal'),
+      serviceFee: document.getElementById('serviceFee'),
+      deliveryFee: document.getElementById('deliveryFee'),
+      additionalCharge: document.getElementById('additionalCharge')
+    };
+
+    const viewSubtotal = document.getElementById('viewSubtotal');
+    const viewService = document.getElementById('viewService');
+    const viewDelivery = document.getElementById('viewDelivery');
+    const viewAdditional = document.getElementById('viewAdditional');
+    const viewTotal = document.getElementById('viewTotal');
+
+    const STORAGE_KEY = 'kiakia_oms_orders_v1';
+
+    const defaultOrders = [
+      {
+        id: 'ORD-1023',
+        customer: 'Chinwe A.',
+        estate: 'Banana Island',
+        status: 'Confirmed',
+        total: 63250,
+        whatsapp: '+2348012345673'
+      },
+      {
+        id: 'ORD-1024',
+        customer: 'Ruth I.',
+        estate: 'Lekki Phase 1',
+        status: 'Market Sourcing',
+        total: 48900,
+        whatsapp: '+2348012345674'
+      },
+      {
+        id: 'ORD-1025',
+        customer: 'Paul O.',
+        estate: 'Victoria Island',
+        status: 'New',
+        total: 78500,
+        whatsapp: '+2348012345675'
+      }
+    ];
+
+    let orders = loadOrders();
+
+    function loadOrders() {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          return JSON.parse(stored);
+        }
+      } catch (err) {
+        console.warn('Could not read storage', err);
+      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultOrders));
+      return defaultOrders.slice();
+    }
+
+    function saveOrders() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+    }
+
+    function formatCurrency(value) {
+      return '₦' + value.toLocaleString('en-NG');
+    }
+
+    function getStatusClass(status) {
+      if (status === 'New') return 'status-pill status-new';
+      if (status === 'Confirmed') return 'status-pill status-confirmed';
+      if (status === 'Market Sourcing' || status === 'Purchased') return 'status-pill status-sourcing';
+      if (status === 'At Dispatch Point') return 'status-pill status-delivery';
+      return 'status-pill status-new';
+    }
+
+    function renderOrders() {
+      orderTableBody.innerHTML = '';
+      orders.forEach(order => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${order.id}</td>
+          <td>${order.customer}</td>
+          <td>${order.estate}</td>
+          <td><span class="${getStatusClass(order.status)}">${order.status}</span></td>
+          <td>${formatCurrency(order.total)}</td>
+          <td><a href="https://wa.me/${order.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer">Chat</a></td>
+        `;
+        orderTableBody.appendChild(tr);
+      });
+
+      runnerCards.innerHTML = '';
+      orders.filter(order => order.status !== 'Delivered').forEach(order => {
+        const card = document.createElement('article');
+        card.className = 'runner-card';
+        card.innerHTML = `
+          <h3>${order.id} — ${order.estate}</h3>
+          <p><strong>Customer:</strong> ${order.customer}</p>
+          <p><strong>Status:</strong> <span class="${getStatusClass(order.status)}">${order.status}</span></p>
+          <p><strong>Total:</strong> ${formatCurrency(order.total)}</p>
+          <p style="margin-top:12px;"><a href="https://wa.me/${order.whatsapp.replace(/\D/g, '')}" target="_blank" rel="noreferrer">Open WhatsApp</a></p>
+        `;
+        runnerCards.appendChild(card);
+      });
+    }
+
+    function calculateTotals() {
+      const subtotal = Number(inputs.orderTotal.value) || 0;
+      const service = Number(inputs.serviceFee.value) || 0;
+      const delivery = Number(inputs.deliveryFee.value) || 0;
+      const additional = Number(inputs.additionalCharge.value) || 0;
+      viewSubtotal.textContent = formatCurrency(subtotal);
+      viewService.textContent = formatCurrency(service);
+      viewDelivery.textContent = formatCurrency(delivery);
+      viewAdditional.textContent = formatCurrency(additional);
+      viewTotal.textContent = formatCurrency(subtotal + service + delivery + additional);
+    }
+
+    function addOrder() {
+      const customer = inputs.customerName.value.trim();
+      const phone = inputs.customerPhone.value.trim();
+      const estate = inputs.customerEstate.value.trim();
+      const whatsapp = inputs.customerWhatsapp.value.trim();
+      const address = inputs.customerAddress.value.trim();
+      const status = inputs.orderStatus.value;
+      const total = Number(inputs.orderTotal.value) || 0;
+      const service = Number(inputs.serviceFee.value) || 0;
+      const delivery = Number(inputs.deliveryFee.value) || 0;
+      const additional = Number(inputs.additionalCharge.value) || 0;
+
+      if (!customer || !phone || !estate || !whatsapp) {
+        messageBox.textContent = 'Please fill in all required fields before saving.';
+        return;
+      }
+
+      const order = {
+        id: `ORD-${Date.now().toString().slice(-6)}`,
+        customer,
+        estate,
+        address,
+        status,
+        total: total + service + delivery + additional,
+        whatsapp: whatsapp.replace(/\s+/g, ''),
+        createdAt: new Date().toISOString()
+      };
+      orders.unshift(order);
+      saveOrders();
+      renderOrders();
+      messageBox.textContent = `Order ${order.id} added.`;
+      setTimeout(() => messageBox.textContent = '', 2500);
+    }
+
+    function resetForm() {
+      inputs.customerName.value = '';
+      inputs.customerPhone.value = '';
+      inputs.customerEstate.value = '';
+      inputs.customerAddress.value = '';
+      inputs.customerWhatsapp.value = '';
+      inputs.orderStatus.value = 'New';
+      inputs.orderTotal.value = '0';
+      inputs.serviceFee.value = '1200';
+      inputs.deliveryFee.value = '1500';
+      inputs.additionalCharge.value = '0';
+      calculateTotals();
+      messageBox.textContent = 'Form reset and ready for a new order.';
+      setTimeout(() => messageBox.textContent = '', 2500);
+    }
+
+    Object.values(inputs).forEach(input => {
+      input.addEventListener('input', calculateTotals);
+      input.addEventListener('change', calculateTotals);
+    });
+
+    window.addEventListener('load', () => {
+      calculateTotals();
+      renderOrders();
+    });
+  </script>
+</body>
+</html>

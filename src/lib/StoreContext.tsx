@@ -108,7 +108,16 @@ function loadInitialState(): Snapshot | null {
 async function fetchOmsSnapshot(): Promise<Snapshot> {
   const response = await fetch('/api/oms', { cache: 'no-store' });
   if (!response.ok) {
-    throw new Error('Failed to fetch OMS snapshot.');
+    let errorMessage = 'Failed to fetch OMS snapshot.';
+    try {
+      const body = await response.json();
+      if (body?.error && typeof body.error === 'string') {
+        errorMessage = body.error;
+      }
+    } catch {
+      // Ignore JSON parsing issues and keep generic error.
+    }
+    throw new Error(errorMessage);
   }
 
   const result = await response.json();
@@ -122,6 +131,11 @@ async function fetchOmsSnapshot(): Promise<Snapshot> {
     estates: (result.estates ?? []) as EstateRecord[],
     notifications: (result.notifications ?? []) as NotificationRecord[]
   };
+}
+
+function isPermanentBackendConfigError(error: unknown) {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error ?? '').toLowerCase();
+  return message.includes('database not configured') || message.includes('supabase_service_role_key');
 }
 
 async function postOmsMutation(payload: Record<string, unknown>) {
@@ -178,6 +192,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [estates, setEstates] = useState<EstateRecord[]>(mockEstates);
   const [notifications, setNotifications] = useState<NotificationRecord[]>(mockNotifications);
   const [usingFallback, setUsingFallback] = useState(false);
+  const [shouldRetryConnection, setShouldRetryConnection] = useState(true);
 
   const isConnected = !usingFallback;
 
@@ -206,6 +221,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const snapshot = await fetchOmsSnapshot();
     applySnapshot(snapshot);
     setUsingFallback(false);
+    setShouldRetryConnection(true);
   }, [applySnapshot]);
 
   useEffect(() => {
@@ -217,7 +233,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (!active) return;
         applySnapshot(snapshot);
         setUsingFallback(false);
-      } catch {
+      } catch (error) {
         if (!active) return;
 
         const initialState = loadInitialState();
@@ -225,6 +241,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           applySnapshot(initialState);
         }
         setUsingFallback(true);
+        if (isPermanentBackendConfigError(error)) {
+          setShouldRetryConnection(false);
+        }
       }
     };
 
@@ -282,18 +301,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refreshSnapshot, usingFallback]);
 
   useEffect(() => {
-    if (!usingFallback) {
+    if (!usingFallback || !shouldRetryConnection) {
       return;
     }
 
     const interval = window.setInterval(() => {
-      void refreshSnapshot().catch(() => {
-        // Keep local fallback state when backend remains unavailable.
+      void refreshSnapshot().catch((error) => {
+        if (isPermanentBackendConfigError(error)) {
+          setShouldRetryConnection(false);
+        }
       });
-    }, 10000);
+    }, 60000);
 
     return () => window.clearInterval(interval);
-  }, [refreshSnapshot, usingFallback]);
+  }, [refreshSnapshot, shouldRetryConnection, usingFallback]);
 
   const value = useMemo(
     () => ({

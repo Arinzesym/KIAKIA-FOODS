@@ -19,7 +19,17 @@ function normalizeSupabaseUrl(rawUrl: string | undefined) {
 const supabaseUrl = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
+function isPlaceholderValue(value: string | undefined | null) {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return !normalized || normalized.includes('example') || normalized.includes('your_') || normalized.includes('changeme');
+}
+
+export const isSupabaseConfigured = Boolean(
+  supabaseUrl &&
+  supabaseAnonKey &&
+  !isPlaceholderValue(supabaseUrl) &&
+  !isPlaceholderValue(supabaseAnonKey)
+);
 
 export const supabaseClient = isSupabaseConfigured
   ? createClient(supabaseUrl as string, supabaseAnonKey as string, {

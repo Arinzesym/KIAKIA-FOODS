@@ -47,6 +47,11 @@ export function middleware(request: NextRequest) {
       if (isIndividualOrderPage && role !== 'owner') {
         return NextResponse.redirect(new URL('/admin/orders', request.url));
       }
+
+      const isTeamManagementPage = pathname.startsWith('/admin/team');
+      if (isTeamManagementPage && role !== 'owner') {
+        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+      }
     }
   }
   

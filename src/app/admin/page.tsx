@@ -12,6 +12,7 @@ export default function AdminIndexPage() {
         <div className="mt-8 flex flex-wrap gap-4">
           <Link href="/admin/dashboard" className="inline-flex items-center justify-center rounded-2xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-700">Open dashboard</Link>
           <Link href="/admin/orders" className="inline-flex items-center justify-center rounded-2xl border border-brand-600 px-6 py-3 text-sm font-semibold text-brand-600 transition hover:bg-brand-50">Manage orders</Link>
+          <Link href="/admin/team" className="inline-flex items-center justify-center rounded-2xl border border-slate-300 px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Team logins</Link>
         </div>
       </div>
     </div>

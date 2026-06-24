@@ -15,39 +15,6 @@ const adminLoginSchema = z.object({
 
 type AdminLoginFormValues = z.infer<typeof adminLoginSchema>;
 
-type LoginRole = 'owner' | 'cofounder' | 'runner';
-
-const demoUsers: Array<{ email: string; password: string; role: LoginRole; redirectTo: string; name: string }> = [
-  {
-    email: 'owner@kiakiafoods.com',
-    password: 'Owner@123',
-    role: 'owner',
-    redirectTo: '/admin/dashboard',
-    name: 'Owner'
-  },
-  {
-    email: 'cofounder1@kiakiafoods.com',
-    password: 'Cofounder@123',
-    role: 'cofounder',
-    redirectTo: '/admin/dashboard',
-    name: 'Cofounder 1'
-  },
-  {
-    email: 'cofounder2@kiakiafoods.com',
-    password: 'Cofounder2@123',
-    role: 'cofounder',
-    redirectTo: '/admin/dashboard',
-    name: 'Cofounder 2'
-  },
-  {
-    email: 'runner@kiakiafoods.com',
-    password: 'Runner@123',
-    role: 'runner',
-    redirectTo: '/runner',
-    name: 'Runner'
-  }
-];
-
 export default function AdminLoginPage() {
   const [message, setMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
@@ -60,25 +27,31 @@ export default function AdminLoginPage() {
   async function onSubmit(data: AdminLoginFormValues) {
     setIsLoading(true);
     try {
-      const matchedUser = demoUsers.find(
-        (user) => user.email.toLowerCase() === data.email.toLowerCase() && user.password === data.password
-      );
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
 
-      if (matchedUser) {
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Invalid credentials. Please try again.');
+      }
+
+      if (result.user) {
         const maxAge = 60 * 60 * 24 * 7;
-        document.cookie = `auth-token=${btoa(matchedUser.email)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `auth-role=${matchedUser.role}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `auth-name=${encodeURIComponent(matchedUser.name)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `auth-token=${btoa(result.user.email)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `auth-role=${result.user.role}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `auth-name=${encodeURIComponent(result.user.name)}; path=/; max-age=${maxAge}; SameSite=Lax`;
 
-        setMessage(`Login successful as ${matchedUser.role}. Redirecting...`);
+        setMessage(`Login successful as ${result.user.role}. Redirecting...`);
         setTimeout(() => {
-          window.location.href = matchedUser.redirectTo;
+          window.location.href = result.user.role === 'runner' ? '/runner' : '/admin/dashboard';
         }, 1000);
-      } else {
-        setMessage('Invalid credentials. Please try again.');
       }
     } catch (error) {
-      setMessage('Login failed. Please try again.');
+      setMessage(error instanceof Error ? error.message : 'Login failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -114,12 +87,9 @@ export default function AdminLoginPage() {
         </form>
 
         <div className="mt-6 border-t border-slate-200 pt-6 text-center">
-          <p className="text-xs text-slate-500">Demo credentials:</p>
+          <p className="text-xs text-slate-500">Use the Team page to create your own logins.</p>
           <div className="mt-2 space-y-2 text-xs text-slate-600">
-            <p>Owner: owner@kiakiafoods.com / Owner@123</p>
-            <p>Cofounder 1: cofounder1@kiakiafoods.com / Cofounder@123</p>
-            <p>Cofounder 2: cofounder2@kiakiafoods.com / Cofounder2@123</p>
-            <p>Runner: runner@kiakiafoods.com / Runner@123</p>
+            <p>Team management: /admin/team</p>
           </div>
         </div>
 

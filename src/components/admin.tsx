@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Legend } from 'recharts';
 import { Button } from '@/components/ui/Button';
@@ -67,6 +67,16 @@ export function AdminOrderTable() {
   const { orders, updateOrder } = useOMSStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
+  const [role, setRole] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+
+  useEffect(() => {
+    const authRole = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('auth-role='))
+      ?.split('=')[1];
+    setRole(authRole ? decodeURIComponent(authRole) : '');
+  }, []);
 
   const orderStatusOptions: Array<{ value: string; label: string }> = [
     { value: 'New', label: 'New' },
@@ -92,6 +102,18 @@ export function AdminOrderTable() {
     [orders, search, statusFilter]
   );
 
+  const handleAssignAllToRunner = () => {
+    if (filteredOrders.length === 0) {
+      setActionMessage('No filtered orders available to assign.');
+      return;
+    }
+
+    filteredOrders.forEach((order) => {
+      updateOrder(order.id, { assignedRider: 'Runner', updatedAt: new Date().toISOString() });
+    });
+    setActionMessage(`${filteredOrders.length} order(s) assigned to Runner.`);
+  };
+
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -100,6 +122,9 @@ export function AdminOrderTable() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">Orders today</h2>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <Button variant="secondary" onClick={handleAssignAllToRunner}>
+            Assign filtered to runner
+          </Button>
           <input
             type="text"
             value={search}
@@ -118,6 +143,9 @@ export function AdminOrderTable() {
           </select>
         </div>
       </div>
+      {actionMessage && (
+        <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{actionMessage}</p>
+      )}
       <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
@@ -144,9 +172,15 @@ export function AdminOrderTable() {
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(order.grandTotal)}</td>
                   <td className="px-6 py-4 text-slate-600">{order.assignedRider || 'Unassigned'}</td>
                   <td className="px-6 py-4 text-slate-600">
-                    <Link href={`/admin/orders/${order.id}`} className="rounded-2xl bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100">
-                      View details
-                    </Link>
+                    {role === 'owner' ? (
+                      <Link href={`/admin/orders/${order.id}`} className="rounded-2xl bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100">
+                        View details
+                      </Link>
+                    ) : (
+                      <span className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500">
+                        Owner only
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))

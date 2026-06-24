@@ -21,17 +21,31 @@ const navItems = [
 export function Navbar() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [role, setRole] = useState('');
+
+  const getCookieValue = (name: string) => {
+    const value = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(`${name}=`))
+      ?.split('=')[1];
+    return value ? decodeURIComponent(value) : '';
+  };
 
   useEffect(() => {
-    // Check if user is logged in by checking for auth token
-    const authToken = document.cookie.split('; ').find(row => row.startsWith('auth-token='));
+    const authToken = getCookieValue('auth-token');
+    const authRole = getCookieValue('auth-role');
     setIsLoggedIn(!!authToken);
+    setRole(authRole);
   }, []);
 
+  const visibleNavItems = role === 'runner' ? navItems.filter((item) => item.href === '/runner') : navItems;
+
   const handleLogout = () => {
-    // Clear auth cookie
     document.cookie = 'auth-token=; path=/; max-age=0';
+    document.cookie = 'auth-role=; path=/; max-age=0';
+    document.cookie = 'auth-name=; path=/; max-age=0';
     setIsLoggedIn(false);
+    setRole('');
     router.push('/auth/admin-login');
   };
 
@@ -45,7 +59,7 @@ export function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Logo />
         <nav className="hidden items-center gap-4 md:flex overflow-x-auto">
-          {navItems.map((item) => (
+          {visibleNavItems.map((item) => (
             <motion.div key={item.href} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <Link href={item.href} className="text-sm font-medium text-slate-700 transition hover:text-brand-600 whitespace-nowrap">
                 {item.label}

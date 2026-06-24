@@ -18,13 +18,14 @@ export default function RunnerPage() {
       const matchSearch = [order.id, order.customerName, order.estate, order.address].some((field) =>
         field.toLowerCase().includes(search.toLowerCase())
       );
-      return visibleStatuses.includes(order.status as typeof visibleStatuses[number]) && matchSearch;
+      const isAssignedToRunner = (order.assignedRider || '').toLowerCase() === 'runner';
+      return isAssignedToRunner && visibleStatuses.includes(order.status as typeof visibleStatuses[number]) && matchSearch;
     }),
     [orders, search]
   );
 
   const handleExportOrders = () => {
-    const csv = exportOrdersAsCsv(orders);
+    const csv = exportOrdersAsCsv(filteredOrders);
     downloadCsv('kiakia-full-orders.csv', csv);
     setSuccessMessage('Orders list downloaded successfully!');
     setTimeout(() => setSuccessMessage(''), 3000);
@@ -104,8 +105,8 @@ export default function RunnerPage() {
       <div className="space-y-4">
         {filteredOrders.length === 0 ? (
           <div className="rounded-3xl border-2 border-dashed border-slate-300 bg-slate-50 p-8 text-center text-slate-600">
-            <p className="text-lg font-semibold">No orders found</p>
-            <p className="text-sm">Try adjusting your search filters</p>
+            <p className="text-lg font-semibold">No runner-assigned orders found</p>
+            <p className="text-sm">Ask admin to assign orders to Runner, or adjust your search filters.</p>
           </div>
         ) : (
           filteredOrders.map((order) => (

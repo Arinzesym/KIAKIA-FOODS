@@ -1,11 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useOMSStore } from '@/lib/StoreContext';
 import { formatCurrency } from '@/lib/utils';
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const orderId = searchParams?.get('orderId');
@@ -32,7 +33,6 @@ export default function OrderConfirmationPage() {
 
     setIsConfirming(true);
     try {
-      // Update order status to Confirmed
       updateOrder(order.id, { 
         status: 'Confirmed', 
         updatedAt: new Date().toISOString() 
@@ -41,7 +41,6 @@ export default function OrderConfirmationPage() {
       setIsConfirmed(true);
       setError('');
       
-      // Show success for a moment then redirect
       setTimeout(() => {
         router.push('/order-confirmation-success?orderId=' + order.id);
       }, 1500);
@@ -78,7 +77,6 @@ export default function OrderConfirmationPage() {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-50 to-slate-100 px-4 py-8">
       <div className="w-full max-w-md">
         <div className="rounded-3xl bg-white p-8 shadow-xl">
-          {/* Header */}
           <div className="text-center mb-8">
             <div className="text-5xl mb-4">
               {isConfirmed ? '✅' : '📋'}
@@ -93,7 +91,6 @@ export default function OrderConfirmationPage() {
             </p>
           </div>
 
-          {/* Order Details */}
           <div className="space-y-4 mb-8 rounded-2xl bg-slate-50 p-6">
             <div>
               <p className="text-xs uppercase text-slate-500 font-semibold">Order Number</p>
@@ -148,7 +145,6 @@ export default function OrderConfirmationPage() {
             </div>
           </div>
 
-          {/* Status Message */}
           {error && (
             <div className="mb-6 rounded-2xl bg-red-50 p-4 text-red-700 text-sm font-semibold">
               ⚠️ {error}
@@ -161,7 +157,6 @@ export default function OrderConfirmationPage() {
             </div>
           )}
 
-          {/* Confirmation Button */}
           {!isConfirmed ? (
             <button
               onClick={handleConfirmOrder}
@@ -181,7 +176,6 @@ export default function OrderConfirmationPage() {
             </div>
           )}
 
-          {/* Footer Note */}
           <div className="mt-6 pt-6 border-t border-slate-200 text-center">
             <p className="text-xs text-slate-500">
               💬 If you have any questions, please reach out to us on WhatsApp
@@ -189,7 +183,6 @@ export default function OrderConfirmationPage() {
           </div>
         </div>
 
-        {/* Additional Info */}
         <div className="mt-6 rounded-2xl bg-blue-50 border border-blue-200 p-6">
           <p className="text-sm font-semibold text-blue-900 mb-3">📝 What happens next?</p>
           <ul className="space-y-2 text-sm text-blue-800">
@@ -202,5 +195,23 @@ export default function OrderConfirmationPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
+      <div className="text-center">
+        <p className="text-lg font-semibold text-slate-700">Loading order details...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }

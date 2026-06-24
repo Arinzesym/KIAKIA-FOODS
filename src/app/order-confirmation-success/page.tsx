@@ -1,11 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useOMSStore } from '@/lib/StoreContext';
 import { formatCurrency } from '@/lib/utils';
 
-export default function OrderConfirmationSuccessPage() {
+function OrderSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams?.get('orderId');
   const { orders } = useOMSStore();
@@ -123,5 +124,23 @@ export default function OrderConfirmationSuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-green-50 px-4">
+      <div className="text-center">
+        <p className="text-lg font-semibold text-slate-700">Loading order confirmation...</p>
+      </div>
+    </div>
+  );
+}
+
+export default function OrderConfirmationSuccessPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <OrderSuccessContent />
+    </Suspense>
   );
 }

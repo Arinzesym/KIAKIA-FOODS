@@ -211,16 +211,35 @@ alter table public.admin_settings enable row level security;
 
 -- Allow authenticated app users to read/write from the app when using the service role.
 -- For client-side reads, add your own policies based on your auth model.
-create policy if not exists "Allow all for service role" on public.users for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.customers for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.estates for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.estate_batches for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.orders for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.order_items for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.runner_tasks for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.rider_assignments for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.finances for all using (true) with check (true);
-create policy if not exists "Allow all for service role" on public.admin_settings for all using (true) with check (true);
+drop policy if exists "Allow all for service role" on public.users;
+create policy "Allow all for service role" on public.users for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.customers;
+create policy "Allow all for service role" on public.customers for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.estates;
+create policy "Allow all for service role" on public.estates for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.estate_batches;
+create policy "Allow all for service role" on public.estate_batches for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.orders;
+create policy "Allow all for service role" on public.orders for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.order_items;
+create policy "Allow all for service role" on public.order_items for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.runner_tasks;
+create policy "Allow all for service role" on public.runner_tasks for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.rider_assignments;
+create policy "Allow all for service role" on public.rider_assignments for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.finances;
+create policy "Allow all for service role" on public.finances for all using (true) with check (true);
+
+drop policy if exists "Allow all for service role" on public.admin_settings;
+create policy "Allow all for service role" on public.admin_settings for all using (true) with check (true);
 
 insert into public.admin_settings (business_name, whatsapp_number, business_account_number, service_fee, delivery_fee)
 values ('KiaKia Foods', '+2348000000000', '1234567890', 1200, 1500)

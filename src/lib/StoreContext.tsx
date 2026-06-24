@@ -14,11 +14,15 @@ interface OMSStore {
   updateOrder: (orderId: string, patch: Partial<OrderRecord>) => void;
   deleteOrder: (orderId: string) => void;
   addCustomer: (customer: CustomerProfile) => void;
+  deleteCustomer: (customerId: string) => void;
   addRunnerTask: (task: RunnerTask) => void;
   updateRunnerTask: (taskId: string, patch: Partial<RunnerTask>) => void;
+  deleteRunnerTask: (taskId: string) => void;
   addEstateBatch: (batch: EstateBatch) => void;
   updateEstateBatch: (batchId: string, patch: Partial<EstateBatch>) => void;
+  deleteEstateBatch: (batchId: string) => void;
   updateRiderAssignment: (assignmentId: string, patch: Partial<RiderAssignment>) => void;
+  deleteRiderAssignment: (assignmentId: string) => void;
 }
 
 const StoreContext = createContext<OMSStore | undefined>(undefined);
@@ -165,12 +169,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setCustomers((current) => [customer, ...current]);
         runMutation({ resource: 'customers', action: 'create', payload: customer });
       },
+      deleteCustomer(customerId: string) {
+        setCustomers((current) => current.filter((customer) => customer.id !== customerId));
+        runMutation({ resource: 'customers', action: 'delete', id: customerId });
+      },
       addRunnerTask(task: RunnerTask) {
         setRunnerTasks((current) => [task, ...current]);
       },
       updateRunnerTask(taskId: string, patch: Partial<RunnerTask>) {
         setRunnerTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...patch } : task)));
         runMutation({ resource: 'runnerTasks', action: 'update', id: taskId, payload: patch });
+      },
+      deleteRunnerTask(taskId: string) {
+        setRunnerTasks((current) => current.filter((task) => task.id !== taskId));
+        runMutation({ resource: 'runnerTasks', action: 'delete', id: taskId });
       },
       addEstateBatch(batch: EstateBatch) {
         setEstateBatches((current) => [batch, ...current]);
@@ -179,9 +191,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setEstateBatches((current) => current.map((batch) => (batch.id === batchId ? { ...batch, ...patch } : batch)));
         runMutation({ resource: 'estateBatches', action: 'update', id: batchId, payload: patch });
       },
+      deleteEstateBatch(batchId: string) {
+        setEstateBatches((current) => current.filter((batch) => batch.id !== batchId));
+        runMutation({ resource: 'estateBatches', action: 'delete', id: batchId });
+      },
       updateRiderAssignment(assignmentId: string, patch: Partial<RiderAssignment>) {
         setRiderAssignments((current) => current.map((assignment) => (assignment.id === assignmentId ? { ...assignment, ...patch } : assignment)));
         runMutation({ resource: 'riderAssignments', action: 'update', id: assignmentId, payload: patch });
+      },
+      deleteRiderAssignment(assignmentId: string) {
+        setRiderAssignments((current) => current.filter((assignment) => assignment.id !== assignmentId));
+        runMutation({ resource: 'riderAssignments', action: 'delete', id: assignmentId });
       }
     }),
     [orders, customers, estateBatches, runnerTasks, riderAssignments, usingFallback]

@@ -9,6 +9,20 @@ import { useOMSStore } from '@/lib/StoreContext';
 import { orderStatusMap } from '@/lib/mockData';
 import { isAdminRole, normalizeRole, type AuthRole } from '@/lib/access';
 
+function useAuthRole() {
+  const [role, setRole] = useState<AuthRole>('');
+
+  useEffect(() => {
+    const authRole = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('auth-role='))
+      ?.split('=')[1];
+    setRole(normalizeRole(authRole));
+  }, []);
+
+  return role;
+}
+
 function StatusBadge({ status }: { status: string }) {
   const className = orderStatusMap[status as keyof typeof orderStatusMap] ?? 'bg-slate-100 text-slate-700';
   return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${className}`}>{status}</span>;
@@ -68,16 +82,8 @@ export function AdminOrderTable() {
   const { orders, updateOrder, deleteOrder } = useOMSStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [role, setRole] = useState<AuthRole>('');
+  const role = useAuthRole();
   const [actionMessage, setActionMessage] = useState('');
-
-  useEffect(() => {
-    const authRole = document.cookie
-      .split('; ')
-      .find((row) => row.startsWith('auth-role='))
-      ?.split('=')[1];
-    setRole(normalizeRole(authRole));
-  }, []);
 
   const orderStatusOptions: Array<{ value: string; label: string }> = [
     { value: 'New', label: 'New' },
@@ -327,7 +333,21 @@ export function EstatePerformance() {
 }
 
 export function EstateBatchingPanel() {
-  const { estateBatches } = useOMSStore();
+  const { estateBatches, deleteEstateBatch } = useOMSStore();
+  const role = useAuthRole();
+  const [actionMessage, setActionMessage] = useState('');
+
+  const canDeleteBatches = role === 'owner' || role === 'cofounder';
+
+  const handleDeleteBatch = (batchId: string) => {
+    const confirmed = window.confirm(`Delete estate batch ${batchId}? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    deleteEstateBatch(batchId);
+    setActionMessage(`Estate batch ${batchId} deleted.`);
+  };
 
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm">
@@ -338,6 +358,7 @@ export function EstateBatchingPanel() {
         </div>
         <Button variant="secondary">Create new batch</Button>
       </div>
+      {actionMessage ? <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{actionMessage}</p> : null}
       <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
@@ -348,6 +369,7 @@ export function EstateBatchingPanel() {
               <th className="px-6 py-4">Total value</th>
               <th className="px-6 py-4">Rider</th>
               <th className="px-6 py-4">Status</th>
+              <th className="px-6 py-4">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
@@ -359,6 +381,19 @@ export function EstateBatchingPanel() {
                 <td className="px-6 py-4 text-slate-600">{formatCurrency(batch.totalValue)}</td>
                 <td className="px-6 py-4 text-slate-600">{batch.assignedRider}</td>
                 <td className="px-6 py-4 text-slate-600">{batch.status}</td>
+                <td className="px-6 py-4 text-slate-600">
+                  {canDeleteBatches ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteBatch(batch.id)}
+                      className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    <span className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500">Restricted</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -369,7 +404,19 @@ export function EstateBatchingPanel() {
 }
 
 export function RunnerTaskPanel() {
-  const { runnerTasks } = useOMSStore();
+  const { runnerTasks, deleteRunnerTask } = useOMSStore();
+  const role = useAuthRole();
+  const [actionMessage, setActionMessage] = useState('');
+
+  const handleDeleteTask = (taskId: string) => {
+    const confirmed = window.confirm(`Delete runner task ${taskId}? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    deleteRunnerTask(taskId);
+    setActionMessage(`Runner task ${taskId} deleted.`);
+  };
 
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm">
@@ -379,6 +426,7 @@ export function RunnerTaskPanel() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">Track sourcing tasks and purchase status</h2>
         </div>
       </div>
+      {actionMessage ? <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{actionMessage}</p> : null}
       <div className="mt-6 space-y-4">
         {runnerTasks.map((task) => (
           <div key={task.id} className="rounded-3xl border border-slate-200 p-6">
@@ -387,7 +435,18 @@ export function RunnerTaskPanel() {
                 <p className="text-lg font-semibold text-slate-950">{task.task}</p>
                 <p className="text-sm text-slate-500">{task.orderId} • {task.assignedTo}</p>
               </div>
-              <StatusBadge status={task.status} />
+              <div className="flex items-center gap-3">
+                <StatusBadge status={task.status} />
+                {role === 'owner' ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteTask(task.id)}
+                    className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                  >
+                    Delete
+                  </button>
+                ) : null}
+              </div>
             </div>
             <div className="mt-4 grid gap-4 sm:grid-cols-3 text-sm text-slate-600">
               <span>Purchase cost: {formatCurrency(task.purchaseCost)}</span>
@@ -402,7 +461,19 @@ export function RunnerTaskPanel() {
 }
 
 export function RiderAssignmentPanel() {
-  const { riderAssignments } = useOMSStore();
+  const { riderAssignments, deleteRiderAssignment } = useOMSStore();
+  const role = useAuthRole();
+  const [actionMessage, setActionMessage] = useState('');
+
+  const handleDeleteAssignment = (assignmentId: string) => {
+    const confirmed = window.confirm(`Delete rider assignment ${assignmentId}? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    deleteRiderAssignment(assignmentId);
+    setActionMessage(`Rider assignment ${assignmentId} deleted.`);
+  };
 
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm">
@@ -412,6 +483,7 @@ export function RiderAssignmentPanel() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">Delivery status and proof tracking</h2>
         </div>
       </div>
+      {actionMessage ? <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{actionMessage}</p> : null}
       <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
@@ -421,6 +493,7 @@ export function RiderAssignmentPanel() {
               <th className="px-6 py-4">Rider</th>
               <th className="px-6 py-4">Status</th>
               <th className="px-6 py-4">Proof</th>
+              <th className="px-6 py-4">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
@@ -431,6 +504,19 @@ export function RiderAssignmentPanel() {
                 <td className="px-6 py-4 text-slate-600">{assignment.assignedRider}</td>
                 <td className="px-6 py-4 text-slate-600">{assignment.status}</td>
                 <td className="px-6 py-4 text-slate-600">{assignment.proofUrl ? <a className="text-brand-600 hover:underline" href={assignment.proofUrl}>View proof</a> : 'Pending'}</td>
+                <td className="px-6 py-4 text-slate-600">
+                  {role === 'owner' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteAssignment(assignment.id)}
+                      className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    <span className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500">Restricted</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -527,7 +613,19 @@ export function ExportReportsPanel() {
 }
 
 export function AdminCustomerTable() {
-  const { customers } = useOMSStore();
+  const { customers, deleteCustomer } = useOMSStore();
+  const role = useAuthRole();
+  const [actionMessage, setActionMessage] = useState('');
+
+  const handleDeleteCustomer = (customerId: string, customerName: string) => {
+    const confirmed = window.confirm(`Delete customer ${customerName}? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    deleteCustomer(customerId);
+    setActionMessage(`Customer ${customerName} deleted.`);
+  };
 
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm">
@@ -537,6 +635,7 @@ export function AdminCustomerTable() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">Customer profiles and order history</h2>
         </div>
       </div>
+      {actionMessage ? <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{actionMessage}</p> : null}
       <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
@@ -546,6 +645,7 @@ export function AdminCustomerTable() {
               <th className="px-6 py-4">Estate</th>
               <th className="px-6 py-4">Orders</th>
               <th className="px-6 py-4">Spend</th>
+              <th className="px-6 py-4">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 bg-white">
@@ -556,6 +656,19 @@ export function AdminCustomerTable() {
                 <td className="px-6 py-4 text-slate-600">{customer.estate}</td>
                 <td className="px-6 py-4 text-slate-600">{customer.totalOrders}</td>
                 <td className="px-6 py-4 text-slate-600">{formatCurrency(customer.lifetimeSpend)}</td>
+                <td className="px-6 py-4 text-slate-600">
+                  {role === 'owner' ? (
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteCustomer(customer.id, customer.name)}
+                      className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                    >
+                      Delete
+                    </button>
+                  ) : (
+                    <span className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500">Restricted</span>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

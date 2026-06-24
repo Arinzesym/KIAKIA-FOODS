@@ -118,6 +118,10 @@ function canMutateResource(role: ReturnType<typeof normalizeRole>, resource: Mut
   }
 
   if (resource === 'runnerTasks') {
+    if (action === 'update') {
+      return role === 'owner';
+    }
+
     return role === 'owner';
   }
 
@@ -126,6 +130,10 @@ function canMutateResource(role: ReturnType<typeof normalizeRole>, resource: Mut
   }
 
   if (resource === 'riderAssignments') {
+    if (action === 'delete') {
+      return role === 'owner';
+    }
+
     return role === 'owner' || role === 'runner' || role === 'rider';
   }
 
@@ -583,6 +591,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true }, { status: 201 });
     }
 
+    if (resource === 'customers' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Customer id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('customers').delete().eq('id', id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     if (resource === 'runnerTasks' && action === 'update') {
       if (!id) {
         return NextResponse.json({ error: 'Runner task id is required.' }, { status: 400 });
@@ -600,6 +621,19 @@ export async function POST(request: Request) {
         })
         .eq('id', id);
 
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'runnerTasks' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Runner task id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('runner_tasks').delete().eq('id', id);
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
@@ -631,6 +665,19 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (resource === 'riderAssignments' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Rider assignment id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('rider_assignments').delete().eq('id', id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
     if (resource === 'estateBatches' && action === 'update') {
       if (!id) {
         return NextResponse.json({ error: 'Batch id is required.' }, { status: 400 });
@@ -649,6 +696,19 @@ export async function POST(request: Request) {
         })
         .eq('id', id);
 
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'estateBatches' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Batch id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('estate_batches').delete().eq('id', id);
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }

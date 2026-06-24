@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/Input';
 import { calculateGrandTotal, calculateSubtotal, generateOrderId } from '@/lib/mockData';
 import { formatCurrency } from '@/lib/utils';
 import { useOMSStore } from '@/lib/StoreContext';
-import type { OrderItem, OrderRecord, CustomerProfile } from '@/lib/types';
+import type { OrderItem, OrderRecord } from '@/lib/types';
 
 const orderCreateSchema = z.object({
   customerName: z.string().min(2),
@@ -34,7 +34,7 @@ type OrderCreateValues = z.infer<typeof orderCreateSchema>;
 
 export default function AdminOrderCreatePage() {
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
-  const { orders, customers, addOrder, addCustomer } = useOMSStore();
+  const { addOrder } = useOMSStore();
   const { register, control, handleSubmit, watch, formState: { errors } } = useForm<OrderCreateValues>({
     resolver: zodResolver(orderCreateSchema),
     defaultValues: {
@@ -65,29 +65,10 @@ export default function AdminOrderCreatePage() {
 
   function onSubmit(values: OrderCreateValues) {
     const orderId = generateOrderId();
-    const existingCustomer = customers.find((customer) => customer.phone === values.phone);
-    const customerId = existingCustomer ? existingCustomer.id : `C-${Date.now()}`;
-
-    if (!existingCustomer) {
-      const newCustomer: CustomerProfile = {
-        id: customerId,
-        name: values.customerName,
-        email: '',
-        phone: values.phone,
-        estate: values.estate,
-        address: values.address,
-        totalOrders: 1,
-        lifetimeSpend: grandTotal,
-        repeatOrders: 1,
-        lastOrderDate: new Date().toISOString(),
-        notes: ''
-      };
-      addCustomer(newCustomer);
-    }
 
     const newOrder: OrderRecord = {
       id: orderId,
-      customerId,
+      customerId: '',
       customerName: values.customerName,
       phone: values.phone,
       email: '',

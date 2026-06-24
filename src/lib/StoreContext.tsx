@@ -21,7 +21,7 @@ interface OMSStore {
 }
 
 const StoreContext = createContext<OMSStore | undefined>(undefined);
-const STORAGE_KEY = 'kiakia-oms-store-v1';
+const STORAGE_KEY = 'kiakia-oms-store-v2';
 
 function loadInitialState() {
   if (typeof window === 'undefined') {
@@ -44,22 +44,89 @@ function loadInitialState() {
   }
 }
 
+async function fetchOmsSnapshot() {
+  const response = await fetch('/api/oms', { cache: 'no-store' });
+  if (!response.ok) {
+    throw new Error('Failed to fetch OMS snapshot.');
+  }
+
+  const result = await response.json();
+  return {
+    orders: (result.orders ?? []) as OrderRecord[],
+    customers: (result.customers ?? []) as CustomerProfile[],
+    estateBatches: (result.estateBatches ?? []) as EstateBatch[],
+    runnerTasks: (result.runnerTasks ?? []) as RunnerTask[],
+    riderAssignments: (result.riderAssignments ?? []) as RiderAssignment[]
+  };
+}
+
+async function postOmsMutation(payload: Record<string, unknown>) {
+  const response = await fetch('/api/oms', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const bodyText = await response.text();
+    throw new Error(bodyText || 'Failed to save OMS mutation.');
+  }
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [customers, setCustomers] = useState<CustomerProfile[]>(mockCustomers);
   const [estateBatches, setEstateBatches] = useState<EstateBatch[]>(mockEstateBatches);
   const [runnerTasks, setRunnerTasks] = useState<RunnerTask[]>(mockRunnerTasks);
   const [riderAssignments, setRiderAssignments] = useState<RiderAssignment[]>(mockRiderAssignments);
+  const [usingFallback, setUsingFallback] = useState(false);
+
+  const runMutation = (payload: Record<string, unknown>) => {
+    if (usingFallback) {
+      return;
+    }
+
+    void postOmsMutation(payload).catch(() => {
+      setUsingFallback(true);
+    });
+  };
 
   useEffect(() => {
-    const initialState = loadInitialState();
-    if (initialState) {
-      setOrders(initialState.orders);
-      setCustomers(initialState.customers);
-      setEstateBatches(initialState.estateBatches);
-      setRunnerTasks(initialState.runnerTasks);
-      setRiderAssignments(initialState.riderAssignments);
-    }
+    let active = true;
+
+    const hydrate = async () => {
+      try {
+        const snapshot = await fetchOmsSnapshot();
+        if (!active) return;
+
+        setOrders(snapshot.orders);
+        setCustomers(snapshot.customers);
+        setEstateBatches(snapshot.estateBatches);
+        setRunnerTasks(snapshot.runnerTasks);
+        setRiderAssignments(snapshot.riderAssignments);
+        setUsingFallback(false);
+      } catch {
+        if (!active) return;
+
+        const initialState = loadInitialState();
+        if (initialState) {
+          setOrders(initialState.orders);
+          setCustomers(initialState.customers);
+          setEstateBatches(initialState.estateBatches);
+          setRunnerTasks(initialState.runnerTasks);
+          setRiderAssignments(initialState.riderAssignments);
+        }
+        setUsingFallback(true);
+      }
+    };
+
+    void hydrate();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -83,30 +150,36 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       riderAssignments,
       addOrder(order: OrderRecord) {
         setOrders((current) => [order, ...current]);
+        runMutation({ resource: 'orders', action: 'create', payload: order });
       },
       updateOrder(orderId: string, patch: Partial<OrderRecord>) {
         setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, ...patch } : order)));
+        runMutation({ resource: 'orders', action: 'update', id: orderId, payload: patch });
       },
       addCustomer(customer: CustomerProfile) {
         setCustomers((current) => [customer, ...current]);
+        runMutation({ resource: 'customers', action: 'create', payload: customer });
       },
       addRunnerTask(task: RunnerTask) {
         setRunnerTasks((current) => [task, ...current]);
       },
       updateRunnerTask(taskId: string, patch: Partial<RunnerTask>) {
         setRunnerTasks((current) => current.map((task) => (task.id === taskId ? { ...task, ...patch } : task)));
+        runMutation({ resource: 'runnerTasks', action: 'update', id: taskId, payload: patch });
       },
       addEstateBatch(batch: EstateBatch) {
         setEstateBatches((current) => [batch, ...current]);
       },
       updateEstateBatch(batchId: string, patch: Partial<EstateBatch>) {
         setEstateBatches((current) => current.map((batch) => (batch.id === batchId ? { ...batch, ...patch } : batch)));
+        runMutation({ resource: 'estateBatches', action: 'update', id: batchId, payload: patch });
       },
       updateRiderAssignment(assignmentId: string, patch: Partial<RiderAssignment>) {
         setRiderAssignments((current) => current.map((assignment) => (assignment.id === assignmentId ? { ...assignment, ...patch } : assignment)));
+        runMutation({ resource: 'riderAssignments', action: 'update', id: assignmentId, payload: patch });
       }
     }),
-    [orders, customers, estateBatches, runnerTasks, riderAssignments]
+    [orders, customers, estateBatches, runnerTasks, riderAssignments, usingFallback]
   );
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;

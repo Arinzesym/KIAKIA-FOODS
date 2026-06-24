@@ -40,6 +40,7 @@ export function Navbar() {
   }, []);
 
   const visibleNavItems = role === 'runner' ? navItems.filter((item) => item.href === '/runner') : navItems;
+  const showPublicNav = !isLoggedIn;
 
   const handleLogout = () => {
     document.cookie = 'auth-token=; path=/; max-age=0';
@@ -60,7 +61,7 @@ export function Navbar() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Logo />
         <nav className="hidden items-center gap-4 md:flex overflow-x-auto">
-          {visibleNavItems.map((item) => (
+          {!showPublicNav && visibleNavItems.map((item) => (
             <motion.div key={item.href} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
               <Link href={item.href} className="text-sm font-medium text-slate-700 transition hover:text-brand-600 whitespace-nowrap">
                 {item.label}
@@ -68,13 +69,17 @@ export function Navbar() {
             </motion.div>
           ))}
         </nav>
-        {isLoggedIn && (
+        {isLoggedIn ? (
           <button
             onClick={handleLogout}
             className="ml-4 rounded-2xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
           >
             Logout
           </button>
+        ) : (
+          <Link href="/auth/admin-login" className="ml-4 rounded-2xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
+            Login
+          </Link>
         )}
       </div>
     </motion.header>

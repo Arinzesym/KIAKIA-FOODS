@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Protected routes that require authentication
-const protectedRoutes = ['/admin', '/runner', '/customer/dashboard'];
+const protectedRoutes = ['/', '/admin', '/runner', '/customer/dashboard'];
 
 const adminRoles = new Set(['owner', 'cofounder']);
 
@@ -19,12 +19,22 @@ export function middleware(request: NextRequest) {
     
     // If no auth token, redirect to appropriate login page
     if (!hasAuth) {
+      if (pathname === '/') {
+        return NextResponse.redirect(new URL('/auth/admin-login', request.url));
+      }
       if (pathname.startsWith('/admin') || pathname.startsWith('/runner')) {
         return NextResponse.redirect(new URL('/auth/admin-login', request.url));
       }
       if (pathname.startsWith('/customer/dashboard')) {
         return NextResponse.redirect(new URL('/customer/auth/login', request.url));
       }
+    }
+
+    if (pathname === '/') {
+      if (role === 'runner') {
+        return NextResponse.redirect(new URL('/runner', request.url));
+      }
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
     }
 
     if (pathname.startsWith('/runner') && role !== 'runner') {

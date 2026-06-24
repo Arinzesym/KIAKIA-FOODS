@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { supabaseClient } from '@/lib/supabaseClient';
+import { isSupabaseConfigured, supabaseClient } from '@/lib/supabaseClient';
 
 const registerSchema = z.object({
   fullName: z.string().min(2, 'Please enter your full name'),
@@ -27,6 +27,11 @@ export default function CustomerRegisterPage() {
   } = useForm<RegisterFormValues>({ resolver: zodResolver(registerSchema) });
 
   async function onSubmit(data: RegisterFormValues) {
+    if (!supabaseClient) {
+      setMessage('Registration is temporarily unavailable. Please contact support.');
+      return;
+    }
+
     const { error } = await supabaseClient.auth.signUp({
       email: data.email,
       password: data.password,
@@ -48,6 +53,11 @@ export default function CustomerRegisterPage() {
     <div className="mx-auto max-w-md rounded-3xl bg-white p-10 shadow-lg shadow-slate-200/50">
       <h1 className="text-3xl font-semibold text-slate-950">Create your KiaKia account</h1>
       <p className="mt-3 text-slate-600">Start saving orders, addresses, and favorite lists.</p>
+      {!isSupabaseConfigured ? (
+        <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Customer authentication is not configured yet. Add Supabase environment variables to enable registration.
+        </p>
+      ) : null}
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
         <Input label="Full Name" {...register('fullName')} error={errors.fullName?.message} />
         <Input label="Email" type="email" {...register('email')} error={errors.email?.message} />

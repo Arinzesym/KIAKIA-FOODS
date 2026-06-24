@@ -7,7 +7,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { supabaseClient } from '@/lib/supabaseClient';
+import { isSupabaseConfigured, supabaseClient } from '@/lib/supabaseClient';
 
 const loginSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -25,6 +25,11 @@ export default function CustomerLoginPage() {
   } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
   async function onSubmit(data: LoginFormValues) {
+    if (!supabaseClient) {
+      setMessage('Authentication is temporarily unavailable. Please contact support.');
+      return;
+    }
+
     const { error } = await supabaseClient.auth.signInWithPassword({
       email: data.email,
       password: data.password
@@ -40,6 +45,11 @@ export default function CustomerLoginPage() {
     <div className="mx-auto max-w-md rounded-3xl bg-white p-10 shadow-lg shadow-slate-200/50">
       <h1 className="text-3xl font-semibold text-slate-950">Customer login</h1>
       <p className="mt-3 text-slate-600">Secure access to your KiaKia Foods customer dashboard.</p>
+      {!isSupabaseConfigured ? (
+        <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Customer authentication is not configured yet. Add Supabase environment variables to enable login.
+        </p>
+      ) : null}
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
         <Input label="Email" type="email" {...register('email')} error={errors.email?.message} />
         <Input label="Password" type="password" {...register('password')} error={errors.password?.message} />

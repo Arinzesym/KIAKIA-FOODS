@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { supabaseClient } from '@/lib/supabaseClient';
+import { isSupabaseConfigured, supabaseClient } from '@/lib/supabaseClient';
 
 const resetSchema = z.object({ email: z.string().email('Enter a valid email') });
 
@@ -21,6 +21,11 @@ export default function ResetPasswordPage() {
   } = useForm<ResetFormValues>({ resolver: zodResolver(resetSchema) });
 
   async function onSubmit(data: ResetFormValues) {
+    if (!supabaseClient) {
+      setMessage('Password reset is temporarily unavailable. Please contact support.');
+      return;
+    }
+
     const { error } = await supabaseClient.auth.resetPasswordForEmail(data.email, {
       redirectTo: `${window.location.origin}/customer/auth/login`
     });
@@ -31,6 +36,11 @@ export default function ResetPasswordPage() {
     <div className="mx-auto max-w-md rounded-3xl bg-white p-10 shadow-lg shadow-slate-200/50">
       <h1 className="text-3xl font-semibold text-slate-950">Reset password</h1>
       <p className="mt-3 text-slate-600">Enter your email and we will send a secure reset link.</p>
+      {!isSupabaseConfigured ? (
+        <p className="mt-4 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Customer authentication is not configured yet. Add Supabase environment variables to enable password reset.
+        </p>
+      ) : null}
       <form onSubmit={handleSubmit(onSubmit)} className="mt-8 space-y-6">
         <Input label="Email" type="email" {...register('email')} error={errors.email?.message} />
         <Button type="submit" className="w-full">Send reset link</Button>

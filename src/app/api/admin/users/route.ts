@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { randomUUID } from 'crypto';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import { hashPassword } from '@/lib/password';
+import { normalizeRole } from '@/lib/access';
 
 type CreateUserBody = {
   name?: string;
@@ -11,6 +12,8 @@ type CreateUserBody = {
   role?: string;
   password?: string;
 };
+
+const allowedCreateRoles = new Set(['cofounder', 'runner', 'rider']);
 
 function sanitizeUser(user: Record<string, unknown>) {
   return {
@@ -57,16 +60,35 @@ export async function POST(request: Request) {
   const name = body.name?.trim();
   const email = body.email?.trim().toLowerCase();
   const phone = body.phone?.trim() ?? '';
-  const role = body.role?.trim();
+  const role = normalizeRole(body.role);
   const password = body.password ?? '';
 
   if (!name || !email || !role || !password) {
     return NextResponse.json({ error: 'Name, email, role, and password are required.' }, { status: 400 });
   }
 
+  if (!allowedCreateRoles.has(role)) {
+    return NextResponse.json({ error: 'Only cofounder, runner, and rider logins can be created here.' }, { status: 400 });
+  }
+
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
     return NextResponse.json({ error: 'Database not configured. Add Supabase env vars first.' }, { status: 503 });
+  }
+
+  if (role === 'cofounder') {
+    const { count, error: countError } = await supabase
+      .from('users')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'cofounder');
+
+    if (countError) {
+      return NextResponse.json({ error: countError.message }, { status: 500 });
+    }
+
+    if ((count ?? 0) >= 2) {
+      return NextResponse.json({ error: 'Cofounder access is limited to 2 users.' }, { status: 400 });
+    }
   }
 
   const id = randomUUID();

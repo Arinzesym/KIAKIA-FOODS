@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
 import type { CustomerProfile, EstateBatch, OrderItem, OrderRecord, RiderAssignment, RunnerTask } from '@/lib/types';
+import { canAccessPath, canAccessAdminPath, getLandingPath, isAdminRole, isDeliveryRole, normalizeRole } from '@/lib/access';
 
 type SnapshotResponse = {
   orders: OrderRecord[];
@@ -12,10 +14,12 @@ type SnapshotResponse = {
 
 type MutationBody = {
   resource?: 'orders' | 'customers' | 'runnerTasks' | 'estateBatches' | 'riderAssignments';
-  action?: 'create' | 'update';
+  action?: 'create' | 'update' | 'delete';
   id?: string;
   payload?: Record<string, unknown>;
 };
+
+type AppSnapshot = SnapshotResponse;
 
 function toNumber(value: unknown) {
   const parsed = Number(value ?? 0);
@@ -40,6 +44,92 @@ function toOrderItems(value: unknown): OrderItem[] {
       price: toNumber(raw.price)
     };
   });
+}
+
+function calculateSubtotalFromItems(items: OrderItem[]) {
+  return items.reduce((sum, item) => sum + toNumber(item.quantity) * toNumber(item.price), 0);
+}
+
+function calculateGrandTotalFromParts(subtotal: number, serviceFee: number, deliveryFee: number, additionalCharges: number) {
+  return subtotal + serviceFee + deliveryFee + additionalCharges;
+}
+
+function getRequestRole() {
+  return normalizeRole(cookies().get('auth-role')?.value);
+}
+
+function getRequestName() {
+  return decodeURIComponent(cookies().get('auth-name')?.value ?? '');
+}
+
+function matchesAssignedName(assignee: string, roleLabel: string, authName: string) {
+  const normalizedAssignee = assignee.trim().toLowerCase();
+  const normalizedRoleLabel = roleLabel.trim().toLowerCase();
+  const normalizedAuthName = authName.trim().toLowerCase();
+
+  if (!normalizedAssignee) {
+    return true;
+  }
+
+  if (normalizedAuthName && normalizedAssignee === normalizedAuthName) {
+    return true;
+  }
+
+  return normalizedAssignee.includes(normalizedRoleLabel);
+}
+
+function scopeSnapshot(snapshot: AppSnapshot, role: ReturnType<typeof normalizeRole>, authName: string): AppSnapshot {
+  if (!role || isAdminRole(role)) {
+    return snapshot;
+  }
+
+  if (!isDeliveryRole(role)) {
+    return {
+      orders: [],
+      customers: [],
+      estateBatches: [],
+      runnerTasks: [],
+      riderAssignments: []
+    };
+  }
+
+  const riderAssignments = snapshot.riderAssignments.filter((assignment) => matchesAssignedName(assignment.assignedRider, role, authName));
+
+  return {
+    orders: [],
+    customers: [],
+    estateBatches: [],
+    runnerTasks: [],
+    riderAssignments
+  };
+}
+
+function canMutateResource(role: ReturnType<typeof normalizeRole>, resource: MutationBody['resource'], action: MutationBody['action']) {
+  if (!role || !resource || !action) {
+    return false;
+  }
+
+  if (resource === 'orders') {
+    return isAdminRole(role);
+  }
+
+  if (resource === 'customers') {
+    return role === 'owner';
+  }
+
+  if (resource === 'runnerTasks') {
+    return role === 'owner';
+  }
+
+  if (resource === 'estateBatches') {
+    return role === 'owner' || role === 'cofounder';
+  }
+
+  if (resource === 'riderAssignments') {
+    return role === 'owner' || role === 'runner' || role === 'rider';
+  }
+
+  return false;
 }
 
 async function loadSnapshot(): Promise<SnapshotResponse> {
@@ -212,7 +302,7 @@ async function findUserIdByName(name: string) {
   return fallbackData?.id ? String(fallbackData.id) : null;
 }
 
-async function upsertCustomerFromOrderLike(payload: Record<string, unknown>) {
+async function upsertCustomerFromOrderLike(payload: Record<string, unknown>, orderGrandTotal: number) {
   const supabase = getSupabaseAdminClient();
   if (!supabase) {
     throw new Error('Database not configured.');
@@ -239,7 +329,7 @@ async function upsertCustomerFromOrderLike(payload: Record<string, unknown>) {
         address: toText(payload.address),
         total_orders: toNumber(existingCustomer.total_orders) + 1,
         repeat_orders: toNumber(existingCustomer.repeat_orders) + 1,
-        lifetime_spend: toNumber(existingCustomer.lifetime_spend) + toNumber(payload.grandTotal),
+        lifetime_spend: toNumber(existingCustomer.lifetime_spend) + orderGrandTotal,
         updated_at: new Date().toISOString()
       })
       .eq('id', existingCustomer.id);
@@ -257,7 +347,7 @@ async function upsertCustomerFromOrderLike(payload: Record<string, unknown>) {
       address: toText(payload.address),
       total_orders: 1,
       repeat_orders: 1,
-      lifetime_spend: toNumber(payload.grandTotal),
+      lifetime_spend: orderGrandTotal,
       notes: toText(payload.notes),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
@@ -275,7 +365,9 @@ async function upsertCustomerFromOrderLike(payload: Record<string, unknown>) {
 export async function GET() {
   try {
     const snapshot = await loadSnapshot();
-    return NextResponse.json(snapshot);
+    const role = getRequestRole();
+    const authName = getRequestName();
+    return NextResponse.json(scopeSnapshot(snapshot, role, authName));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to load OMS data.' },
@@ -287,6 +379,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = (await request.json()) as MutationBody;
+    const role = getRequestRole();
     const supabase = getSupabaseAdminClient();
     if (!supabase) {
       return NextResponse.json({ error: 'Database not configured.' }, { status: 503 });
@@ -301,8 +394,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'resource and action are required.' }, { status: 400 });
     }
 
+    if (!canMutateResource(role, resource, action)) {
+      return NextResponse.json({ error: 'You do not have permission to perform this action.' }, { status: 403 });
+    }
+
     if (resource === 'orders' && action === 'create') {
-      const customerId = await upsertCustomerFromOrderLike(payload);
+      const parsedItems = toOrderItems(payload.items);
+      const serviceFee = toNumber(payload.serviceFee);
+      const deliveryFee = toNumber(payload.deliveryFee);
+      const additionalCharges = toNumber(payload.additionalCharges);
+      const subtotal = calculateSubtotalFromItems(parsedItems);
+      const grandTotal = calculateGrandTotalFromParts(subtotal, serviceFee, deliveryFee, additionalCharges);
+      const customerId = await upsertCustomerFromOrderLike(payload, grandTotal);
       const assignedRiderId = await findUserIdByName(toText(payload.assignedRider));
       const orderId = toText(payload.id);
       const now = new Date().toISOString();
@@ -317,11 +420,11 @@ export async function POST(request: Request) {
         estate: toText(payload.estate),
         address: toText(payload.address),
         status: toText(payload.status) || 'New',
-        subtotal: toNumber(payload.subtotal),
-        service_fee: toNumber(payload.serviceFee),
-        delivery_fee: toNumber(payload.deliveryFee),
-        additional_charges: toNumber(payload.additionalCharges),
-        grand_total: toNumber(payload.grandTotal),
+        subtotal,
+        service_fee: serviceFee,
+        delivery_fee: deliveryFee,
+        additional_charges: additionalCharges,
+        grand_total: grandTotal,
         batch_id: toText(payload.batchId) || null,
         assigned_rider_id: assignedRiderId,
         purchase_cost: toNumber(payload.purchaseCost),
@@ -334,7 +437,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: orderError.message }, { status: 500 });
       }
 
-      const items = toOrderItems(payload.items).map((item) => ({
+      const items = parsedItems.map((item) => ({
         order_id: orderId,
         name: item.name,
         quantity: item.quantity,
@@ -367,14 +470,46 @@ export async function POST(request: Request) {
       if ('notes' in payload) updatePayload.notes = toText(payload.notes);
       if ('purchaseCost' in payload) updatePayload.purchase_cost = toNumber(payload.purchaseCost);
       if ('batchId' in payload) updatePayload.batch_id = toText(payload.batchId) || null;
-      if ('serviceFee' in payload) updatePayload.service_fee = toNumber(payload.serviceFee);
-      if ('deliveryFee' in payload) updatePayload.delivery_fee = toNumber(payload.deliveryFee);
-      if ('additionalCharges' in payload) updatePayload.additional_charges = toNumber(payload.additionalCharges);
-      if ('subtotal' in payload) updatePayload.subtotal = toNumber(payload.subtotal);
-      if ('grandTotal' in payload) updatePayload.grand_total = toNumber(payload.grandTotal);
 
       if ('assignedRider' in payload) {
         updatePayload.assigned_rider_id = await findUserIdByName(toText(payload.assignedRider));
+      }
+
+      const needsTotalRecalculation =
+        'items' in payload ||
+        'serviceFee' in payload ||
+        'deliveryFee' in payload ||
+        'additionalCharges' in payload ||
+        'subtotal' in payload ||
+        'grandTotal' in payload;
+
+      if (needsTotalRecalculation) {
+        const { data: existingOrder, error: existingOrderError } = await supabase
+          .from('orders')
+          .select('subtotal, service_fee, delivery_fee, additional_charges')
+          .eq('id', id)
+          .maybeSingle();
+
+        if (existingOrderError) {
+          return NextResponse.json({ error: existingOrderError.message }, { status: 500 });
+        }
+
+        const itemsForTotals = 'items' in payload ? toOrderItems(payload.items) : null;
+        const subtotal = itemsForTotals
+          ? calculateSubtotalFromItems(itemsForTotals)
+          : ('subtotal' in payload ? toNumber(payload.subtotal) : toNumber(existingOrder?.subtotal));
+
+        const serviceFee = 'serviceFee' in payload ? toNumber(payload.serviceFee) : toNumber(existingOrder?.service_fee);
+        const deliveryFee = 'deliveryFee' in payload ? toNumber(payload.deliveryFee) : toNumber(existingOrder?.delivery_fee);
+        const additionalCharges = 'additionalCharges' in payload
+          ? toNumber(payload.additionalCharges)
+          : toNumber(existingOrder?.additional_charges);
+
+        updatePayload.subtotal = subtotal;
+        updatePayload.service_fee = serviceFee;
+        updatePayload.delivery_fee = deliveryFee;
+        updatePayload.additional_charges = additionalCharges;
+        updatePayload.grand_total = calculateGrandTotalFromParts(subtotal, serviceFee, deliveryFee, additionalCharges);
       }
 
       const { error: updateError } = await supabase.from('orders').update(updatePayload).eq('id', id);
@@ -407,6 +542,19 @@ export async function POST(request: Request) {
             return NextResponse.json({ error: insertError.message }, { status: 500 });
           }
         }
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'orders' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Order id is required.' }, { status: 400 });
+      }
+
+      const { error: deleteError } = await supabase.from('orders').delete().eq('id', id);
+      if (deleteError) {
+        return NextResponse.json({ error: deleteError.message }, { status: 500 });
       }
 
       return NextResponse.json({ success: true });

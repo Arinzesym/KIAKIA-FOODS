@@ -8,6 +8,7 @@ import { z } from 'zod';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useRouter } from 'next/navigation';
+import { getLandingPath, normalizeRole } from '@/lib/access';
 
 const adminLoginSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -28,13 +29,13 @@ export default function AdminLoginPage() {
 
   useEffect(() => {
     const hasAuth = document.cookie.split('; ').some((row) => row.startsWith('auth-token='));
-    const role = document.cookie
+    const role = normalizeRole(document.cookie
       .split('; ')
       .find((row) => row.startsWith('auth-role='))
-      ?.split('=')[1];
+      ?.split('=')[1]);
 
     if (hasAuth) {
-      router.replace(role === 'runner' ? '/runner' : '/admin/dashboard');
+      router.replace(getLandingPath(role));
     }
   }, [router]);
 
@@ -70,7 +71,7 @@ export default function AdminLoginPage() {
 
         setMessage(`Login successful as ${user.role}. Redirecting...`);
         setTimeout(() => {
-          window.location.href = user.role === 'runner' ? '/runner' : '/admin/dashboard';
+          window.location.href = getLandingPath(normalizeRole(user.role));
         }, 1000);
       }
     } catch (error) {

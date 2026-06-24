@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { canAccessPath, getLandingPath, normalizeRole } from '@/lib/access';
 
 // Protected routes that require authentication
 const protectedRoutes = ['/', '/admin', '/runner', '/customer/dashboard'];
-
-const adminRoles = new Set(['owner', 'cofounder']);
 
 export function middleware(request: NextRequest) {
   const pathname = request.nextUrl.pathname;
@@ -15,14 +14,22 @@ export function middleware(request: NextRequest) {
   if (isProtectedRoute) {
     // Check for auth token in cookies or session
     const hasAuth = request.cookies.get('auth-token')?.value || request.cookies.get('sb-auth-token')?.value;
-    const role = request.cookies.get('auth-role')?.value;
+    const role = normalizeRole(request.cookies.get('auth-role')?.value);
+
+    if (hasAuth && pathname === '/') {
+      return NextResponse.redirect(new URL(getLandingPath(role), request.url));
+    }
+
+    if (hasAuth && pathname.startsWith('/auth/')) {
+      return NextResponse.redirect(new URL(getLandingPath(role), request.url));
+    }
     
     // If no auth token, redirect to appropriate login page
     if (!hasAuth) {
       if (pathname === '/') {
         return NextResponse.redirect(new URL('/auth/admin-login', request.url));
       }
-      if (pathname.startsWith('/admin') || pathname.startsWith('/runner')) {
+      if (pathname.startsWith('/admin') || pathname.startsWith('/runner') || pathname.startsWith('/rider')) {
         return NextResponse.redirect(new URL('/auth/admin-login', request.url));
       }
       if (pathname.startsWith('/customer/dashboard')) {
@@ -30,38 +37,8 @@ export function middleware(request: NextRequest) {
       }
     }
 
-    if (pathname === '/') {
-      if (role === 'runner') {
-        return NextResponse.redirect(new URL('/runner', request.url));
-      }
-      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-    }
-
-    if (pathname.startsWith('/runner') && role !== 'runner') {
-      if (adminRoles.has(role || '')) {
-        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-      }
-      return NextResponse.redirect(new URL('/auth/admin-login', request.url));
-    }
-
-    if (pathname.startsWith('/admin')) {
-      if (!adminRoles.has(role || '')) {
-        if (role === 'runner') {
-          return NextResponse.redirect(new URL('/runner', request.url));
-        }
-        return NextResponse.redirect(new URL('/auth/admin-login', request.url));
-      }
-
-      // Only owner can view individual order details.
-      const isIndividualOrderPage = /^\/admin\/orders\/[^/]+$/.test(pathname);
-      if (isIndividualOrderPage && role !== 'owner') {
-        return NextResponse.redirect(new URL('/admin/orders', request.url));
-      }
-
-      const isTeamManagementPage = pathname.startsWith('/admin/team');
-      if (isTeamManagementPage && role !== 'owner') {
-        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-      }
+    if (hasAuth && !canAccessPath(role, pathname)) {
+      return NextResponse.redirect(new URL(getLandingPath(role), request.url));
     }
   }
   
@@ -72,6 +49,7 @@ export const config = {
   matcher: [
     '/admin/:path*',
     '/runner/:path*',
+    '/rider/:path*',
     '/customer/dashboard/:path*'
   ]
 };

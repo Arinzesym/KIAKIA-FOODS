@@ -5,25 +5,27 @@ import { motion } from 'framer-motion';
 import { Logo } from '@/components/Logo';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
+import { getLandingPath, normalizeRole, type AuthRole } from '@/lib/access';
 
 const navItems = [
-  { label: 'Dashboard', href: '/admin/dashboard' },
-  { label: 'Orders', href: '/admin/orders' },
-  { label: 'Team', href: '/admin/team' },
-  { label: 'Estates', href: '/admin/estate-batching' },
-  { label: 'Runner', href: '/runner' },
-  { label: 'Customers', href: '/admin/customers' },
-  { label: 'Analytics', href: '/admin/analytics' },
-  { label: 'Finance', href: '/admin/finance' },
-  { label: 'Reports', href: '/admin/reports' },
-  { label: 'Settings', href: '/admin/settings' }
+  { label: 'Dashboard', href: '/admin/dashboard', roles: ['owner', 'cofounder'] },
+  { label: 'Orders', href: '/admin/orders', roles: ['owner', 'cofounder'] },
+  { label: 'Team', href: '/admin/team', roles: ['owner'] },
+  { label: 'Estates', href: '/admin/estate-batching', roles: ['owner', 'cofounder'] },
+  { label: 'Runner', href: '/runner', roles: ['owner', 'runner'] },
+  { label: 'Rider', href: '/rider', roles: ['owner', 'rider'] },
+  { label: 'Customers', href: '/admin/customers', roles: ['owner'] },
+  { label: 'Analytics', href: '/admin/analytics', roles: ['owner'] },
+  { label: 'Finance', href: '/admin/finance', roles: ['owner'] },
+  { label: 'Reports', href: '/admin/reports', roles: ['owner', 'cofounder'] },
+  { label: 'Settings', href: '/admin/settings', roles: ['owner'] }
 ];
 
 export function Navbar() {
   const router = useRouter();
   const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState<AuthRole>('');
 
   const getCookieValue = (name: string) => {
     const value = document.cookie
@@ -35,12 +37,12 @@ export function Navbar() {
 
   useEffect(() => {
     const authToken = getCookieValue('auth-token');
-    const authRole = getCookieValue('auth-role');
+    const authRole = normalizeRole(getCookieValue('auth-role'));
     setIsLoggedIn(!!authToken);
     setRole(authRole);
   }, []);
 
-  const visibleNavItems = role === 'runner' ? navItems.filter((item) => item.href === '/runner') : navItems;
+  const visibleNavItems = navItems.filter((item) => item.roles.includes(role));
   const showPublicNav = !isLoggedIn;
   const isAuthPage = pathname.startsWith('/auth/') || pathname.startsWith('/customer/auth/');
 
@@ -76,6 +78,11 @@ export function Navbar() {
                   </Link>
                 </motion.div>
               ))}
+              {!showPublicNav && visibleNavItems.length === 0 && role ? (
+                <Link href={getLandingPath(role)} className="whitespace-nowrap text-sm font-medium text-slate-700 transition hover:text-brand-600">
+                  Open portal
+                </Link>
+              ) : null}
             </nav>
             {isLoggedIn ? (
               <button

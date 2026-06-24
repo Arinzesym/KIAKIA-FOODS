@@ -65,6 +65,18 @@ export default function AdminOrderCreatePage() {
 
   function onSubmit(values: OrderCreateValues) {
     const orderId = generateOrderId();
+    const normalizedItems = values.items.map((item) => ({
+      ...item,
+      quantity: Number(item.quantity ?? 0),
+      price: Number(item.price ?? 0)
+    }));
+    const computedSubtotal = calculateSubtotal(normalizedItems as OrderItem[]);
+    const computedGrandTotal = calculateGrandTotal(
+      normalizedItems as OrderItem[],
+      Number(values.serviceFee),
+      Number(values.deliveryFee),
+      Number(values.additionalCharges)
+    );
 
     const newOrder: OrderRecord = {
       id: orderId,
@@ -75,12 +87,12 @@ export default function AdminOrderCreatePage() {
       whatsapp: values.whatsapp,
       estate: values.estate,
       address: values.address,
-      items: values.items,
-      subtotal,
+      items: normalizedItems,
+      subtotal: computedSubtotal,
       serviceFee: Number(values.serviceFee),
       deliveryFee: Number(values.deliveryFee),
       additionalCharges: Number(values.additionalCharges),
-      grandTotal,
+      grandTotal: computedGrandTotal,
       status: 'New',
       notes: '',
       createdAt: new Date().toISOString(),

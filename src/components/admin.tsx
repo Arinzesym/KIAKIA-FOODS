@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { downloadCsv, exportOrdersAsCsv, exportRunnerTasksAsCsv, exportRiderAssignmentsAsCsv, formatCurrency } from '@/lib/utils';
 import { useOMSStore } from '@/lib/StoreContext';
 import { orderStatusMap } from '@/lib/mockData';
+import { isAdminRole, normalizeRole, type AuthRole } from '@/lib/access';
 
 function StatusBadge({ status }: { status: string }) {
   const className = orderStatusMap[status as keyof typeof orderStatusMap] ?? 'bg-slate-100 text-slate-700';
@@ -64,10 +65,10 @@ export function LeadsPanel() {
 }
 
 export function AdminOrderTable() {
-  const { orders, updateOrder } = useOMSStore();
+  const { orders, updateOrder, deleteOrder } = useOMSStore();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [role, setRole] = useState('');
+  const [role, setRole] = useState<AuthRole>('');
   const [actionMessage, setActionMessage] = useState('');
 
   useEffect(() => {
@@ -75,7 +76,7 @@ export function AdminOrderTable() {
       .split('; ')
       .find((row) => row.startsWith('auth-role='))
       ?.split('=')[1];
-    setRole(authRole ? decodeURIComponent(authRole) : '');
+    setRole(normalizeRole(authRole));
   }, []);
 
   const orderStatusOptions: Array<{ value: string; label: string }> = [
@@ -103,6 +104,11 @@ export function AdminOrderTable() {
   );
 
   const handleAssignAllToRunner = () => {
+    if (!isAdminRole(role)) {
+      setActionMessage('This action is restricted to admin roles.');
+      return;
+    }
+
     if (filteredOrders.length === 0) {
       setActionMessage('No filtered orders available to assign.');
       return;
@@ -114,6 +120,16 @@ export function AdminOrderTable() {
     setActionMessage(`${filteredOrders.length} order(s) assigned to Runner.`);
   };
 
+  const handleDeleteOrder = (orderId: string) => {
+    const confirmed = window.confirm(`Delete order ${orderId}? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    deleteOrder(orderId);
+    setActionMessage(`Order ${orderId} deleted.`);
+  };
+
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -122,7 +138,7 @@ export function AdminOrderTable() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">Orders today</h2>
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Button variant="secondary" onClick={handleAssignAllToRunner}>
+          <Button variant="secondary" onClick={handleAssignAllToRunner} disabled={!isAdminRole(role)}>
             Assign filtered to runner
           </Button>
           <input
@@ -172,13 +188,22 @@ export function AdminOrderTable() {
                   <td className="px-6 py-4 text-slate-600">{formatCurrency(order.grandTotal)}</td>
                   <td className="px-6 py-4 text-slate-600">{order.assignedRider || 'Unassigned'}</td>
                   <td className="px-6 py-4 text-slate-600">
-                    {role === 'owner' ? (
-                      <Link href={`/admin/orders/${order.id}`} className="rounded-2xl bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100">
-                        View details
-                      </Link>
+                    {isAdminRole(role) ? (
+                      <div className="flex flex-wrap gap-2">
+                        <Link href={`/admin/orders/${order.id}`} className="rounded-2xl bg-brand-50 px-4 py-2 text-sm font-semibold text-brand-700 transition hover:bg-brand-100">
+                          View details
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteOrder(order.id)}
+                          className="rounded-2xl bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-100"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     ) : (
                       <span className="rounded-2xl bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-500">
-                        Owner only
+                        Restricted
                       </span>
                     )}
                   </td>

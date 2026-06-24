@@ -12,6 +12,7 @@ interface OMSStore {
   riderAssignments: RiderAssignment[];
   addOrder: (order: OrderRecord) => void;
   updateOrder: (orderId: string, patch: Partial<OrderRecord>) => void;
+  deleteOrder: (orderId: string) => void;
   addCustomer: (customer: CustomerProfile) => void;
   addRunnerTask: (task: RunnerTask) => void;
   updateRunnerTask: (taskId: string, patch: Partial<RunnerTask>) => void;
@@ -155,6 +156,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       updateOrder(orderId: string, patch: Partial<OrderRecord>) {
         setOrders((current) => current.map((order) => (order.id === orderId ? { ...order, ...patch } : order)));
         runMutation({ resource: 'orders', action: 'update', id: orderId, payload: patch });
+      },
+      deleteOrder(orderId: string) {
+        setOrders((current) => current.filter((order) => order.id !== orderId));
+        runMutation({ resource: 'orders', action: 'delete', id: orderId });
       },
       addCustomer(customer: CustomerProfile) {
         setCustomers((current) => [customer, ...current]);

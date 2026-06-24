@@ -28,6 +28,12 @@ const defaultValues: TeamFormValues = {
   password: ''
 };
 
+const allowedRoles = [
+  { value: 'cofounder', label: 'Cofounder' },
+  { value: 'runner', label: 'Runner' },
+  { value: 'rider', label: 'Rider' }
+];
+
 export default function AdminTeamPage() {
   const [users, setUsers] = useState<TeamUser[]>([]);
   const [message, setMessage] = useState('');
@@ -84,7 +90,7 @@ export default function AdminTeamPage() {
       <div className="rounded-3xl bg-gradient-to-r from-brand-600 to-brand-700 p-8 text-white">
         <p className="text-sm font-semibold uppercase tracking-[0.24em] text-brand-100">Team access</p>
         <h1 className="mt-3 text-3xl font-bold">Create and manage team logins</h1>
-        <p className="mt-2 text-brand-100">Add cofounders, runners, and riders with database-backed credentials.</p>
+        <p className="mt-2 text-brand-100">Add cofounders, runners, and riders with database-backed credentials. Cofounder access is capped at two users.</p>
       </div>
 
       {message === 'Owner access required.' ? (
@@ -106,11 +112,9 @@ export default function AdminTeamPage() {
               onChange={(event) => handleChange('role', event.target.value)}
               className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
             >
-              <option value="owner">Owner</option>
-              <option value="cofounder">Cofounder</option>
-              <option value="runner">Runner</option>
-              <option value="rider">Rider</option>
-              <option value="operations">Operations</option>
+              {allowedRoles.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
             </select>
           </label>
           <Input label="Password" type="password" value={formValues.password} onChange={(event) => handleChange('password', event.target.value)} />

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Logo } from '@/components/Logo';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
 
 const navItems = [
@@ -21,6 +21,7 @@ const navItems = [
 
 export function Navbar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState('');
 
@@ -41,6 +42,7 @@ export function Navbar() {
 
   const visibleNavItems = role === 'runner' ? navItems.filter((item) => item.href === '/runner') : navItems;
   const showPublicNav = !isLoggedIn;
+  const isAuthPage = pathname.startsWith('/auth/') || pathname.startsWith('/customer/auth/');
 
   const handleLogout = () => {
     document.cookie = 'auth-token=; path=/; max-age=0';
@@ -60,26 +62,34 @@ export function Navbar() {
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Logo />
-        <nav className="hidden items-center gap-4 md:flex overflow-x-auto">
-          {!showPublicNav && visibleNavItems.map((item) => (
-            <motion.div key={item.href} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
-              <Link href={item.href} className="text-sm font-medium text-slate-700 transition hover:text-brand-600 whitespace-nowrap">
-                {item.label}
-              </Link>
-            </motion.div>
-          ))}
-        </nav>
-        {isLoggedIn ? (
-          <button
-            onClick={handleLogout}
-            className="ml-4 rounded-2xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
-          >
-            Logout
-          </button>
-        ) : (
-          <Link href="/auth/admin-login" className="ml-4 rounded-2xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
-            Login
+        {isAuthPage ? (
+          <Link href="/" className="ml-4 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50">
+            Home
           </Link>
+        ) : (
+          <>
+            <nav className="hidden items-center gap-4 overflow-x-auto md:flex">
+              {!showPublicNav && visibleNavItems.map((item) => (
+                <motion.div key={item.href} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+                  <Link href={item.href} className="whitespace-nowrap text-sm font-medium text-slate-700 transition hover:text-brand-600">
+                    {item.label}
+                  </Link>
+                </motion.div>
+              ))}
+            </nav>
+            {isLoggedIn ? (
+              <button
+                onClick={handleLogout}
+                className="ml-4 rounded-2xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+              >
+                Logout
+              </button>
+            ) : (
+              <Link href="/auth/admin-login" className="ml-4 rounded-2xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
+                Login
+              </Link>
+            )}
+          </>
         )}
       </div>
     </motion.header>

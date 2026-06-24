@@ -1,12 +1,13 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { useRouter } from 'next/navigation';
 
 const adminLoginSchema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -18,11 +19,24 @@ type AdminLoginFormValues = z.infer<typeof adminLoginSchema>;
 export default function AdminLoginPage() {
   const [message, setMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
+  const router = useRouter();
   const {
     register,
     handleSubmit,
     formState: { errors }
   } = useForm<AdminLoginFormValues>({ resolver: zodResolver(adminLoginSchema) });
+
+  useEffect(() => {
+    const hasAuth = document.cookie.split('; ').some((row) => row.startsWith('auth-token='));
+    const role = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith('auth-role='))
+      ?.split('=')[1];
+
+    if (hasAuth) {
+      router.replace(role === 'runner' ? '/runner' : '/admin/dashboard');
+    }
+  }, [router]);
 
   async function onSubmit(data: AdminLoginFormValues) {
     setIsLoading(true);
@@ -33,21 +47,30 @@ export default function AdminLoginPage() {
         body: JSON.stringify(data)
       });
 
-      const result = await response.json();
+      const responseText = await response.text();
+      let result: { error?: string; user?: { email: string; name: string; role: string } } = {};
+
+      try {
+        result = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        result = { error: responseText || 'Invalid response from server.' };
+      }
 
       if (!response.ok) {
         throw new Error(result.error || 'Invalid credentials. Please try again.');
       }
 
-      if (result.user) {
-        const maxAge = 60 * 60 * 24 * 7;
-        document.cookie = `auth-token=${btoa(result.user.email)}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `auth-role=${result.user.role}; path=/; max-age=${maxAge}; SameSite=Lax`;
-        document.cookie = `auth-name=${encodeURIComponent(result.user.name)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+      const user = result.user;
 
-        setMessage(`Login successful as ${result.user.role}. Redirecting...`);
+      if (user) {
+        const maxAge = 60 * 60 * 24 * 7;
+        document.cookie = `auth-token=${btoa(user.email)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `auth-role=${user.role}; path=/; max-age=${maxAge}; SameSite=Lax`;
+        document.cookie = `auth-name=${encodeURIComponent(user.name)}; path=/; max-age=${maxAge}; SameSite=Lax`;
+
+        setMessage(`Login successful as ${user.role}. Redirecting...`);
         setTimeout(() => {
-          window.location.href = result.user.role === 'runner' ? '/runner' : '/admin/dashboard';
+          window.location.href = user.role === 'runner' ? '/runner' : '/admin/dashboard';
         }, 1000);
       }
     } catch (error) {

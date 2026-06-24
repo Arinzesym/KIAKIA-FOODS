@@ -80,25 +80,31 @@ export default function AdminOrderCreatePage() {
 
     const newOrder: OrderRecord = {
       id: orderId,
+      orderNumber: orderId,
       customerId: '',
       customerName: values.customerName,
       phone: values.phone,
       email: '',
       whatsapp: values.whatsapp,
       estate: values.estate,
+      estateCode: '',
+      deliveryZone: '',
       address: values.address,
       items: normalizedItems,
+      quantity: normalizedItems.reduce((sum, item) => sum + item.quantity, 0),
       subtotal: computedSubtotal,
       serviceFee: Number(values.serviceFee),
       deliveryFee: Number(values.deliveryFee),
       additionalCharges: Number(values.additionalCharges),
       grandTotal: computedGrandTotal,
       status: 'New',
+      paymentStatus: 'Pending',
       notes: '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       assignedRider: '',
       batchId: '',
+      dispatchId: '',
       purchaseCost: 0
     };
 

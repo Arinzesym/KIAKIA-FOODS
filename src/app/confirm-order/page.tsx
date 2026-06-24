@@ -20,7 +20,7 @@ function OrderConfirmationContent() {
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (order && order.status === 'Confirmed') {
+    if (order && order.status !== 'New') {
       setIsConfirmed(true);
     }
   }, [order]);
@@ -34,7 +34,7 @@ function OrderConfirmationContent() {
     setIsConfirming(true);
     try {
       updateOrder(order.id, { 
-        status: 'Confirmed', 
+        status: 'Awaiting Rider', 
         updatedAt: new Date().toISOString() 
       });
       

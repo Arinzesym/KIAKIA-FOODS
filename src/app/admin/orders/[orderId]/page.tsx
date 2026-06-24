@@ -5,13 +5,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { useOMSStore } from '@/lib/StoreContext';
-import { formatCurrency, generateWhatsAppMessage, loadAdminSettings } from '@/lib/utils';
+import { buildWhatsAppLink, formatCurrency, generateWhatsAppMessage, loadAdminSettings } from '@/lib/utils';
 import { orderStatuses } from '@/lib/mockData';
 
 export default function AdminOrderDetailPage() {
   const params = useParams();
   const orderId = params?.orderId as string;
-  const { orders, updateOrder } = useOMSStore();
+  const { orders, updateOrder, sendToDispatch } = useOMSStore();
   const order = orders.find((item) => item.id === orderId);
   type OrderStatus = typeof orderStatuses[number];
 
@@ -26,6 +26,7 @@ export default function AdminOrderDetailPage() {
     deliveryFee: 1500
   });
   const [showMessagePreview, setShowMessagePreview] = useState(false);
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     const savedSettings = loadAdminSettings();
@@ -51,7 +52,7 @@ export default function AdminOrderDetailPage() {
     });
   }, [order, settings]);
 
-  const businessWhatsAppUrl = `https://wa.me/${order?.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(whatsappMessage)}`;
+  const businessWhatsAppLink = buildWhatsAppLink(order?.whatsapp ?? '', whatsappMessage);
 
   if (!order) {
     return (
@@ -71,7 +72,24 @@ export default function AdminOrderDetailPage() {
     updateOrder(order.id, { ...patch, updatedAt: new Date().toISOString() });
   };
 
-  const whatsappUrl = `https://wa.me/${order.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(whatsappMessage)}`;
+  const handleMessageCustomer = () => {
+    const linkResult = buildWhatsAppLink(order.whatsapp || order.phone, whatsappMessage);
+    if (!linkResult.ok || !linkResult.url) {
+      setToast(linkResult.error || 'Invalid WhatsApp number.');
+      window.setTimeout(() => setToast(''), 3200);
+      return;
+    }
+
+    window.open(linkResult.url, '_blank', 'noopener,noreferrer');
+    setToast(`Opening direct chat for ${linkResult.normalizedNumber}.`);
+    window.setTimeout(() => setToast(''), 3200);
+  };
+
+  const handleSendToDispatch = () => {
+    sendToDispatch(order.id, assignedRider || order.assignedRider || '');
+    setToast(`${order.orderNumber} sent to dispatch.`);
+    window.setTimeout(() => setToast(''), 3200);
+  };
 
   return (
     <div className="space-y-8 px-4 py-10 sm:px-6 lg:px-8">
@@ -86,20 +104,22 @@ export default function AdminOrderDetailPage() {
             <Button variant="secondary" onClick={() => handleUpdate({ status: 'Delivered' })}>
               Mark delivered
             </Button>
-            <Button variant="secondary" onClick={() => handleUpdate({ status: 'Confirmed' })}>
-              Mark confirmed
+            <Button variant="secondary" onClick={() => handleUpdate({ status: 'Assigned' })}>
+              Mark assigned
             </Button>
             <button
               onClick={() => setShowMessagePreview(!showMessagePreview)}
               className="inline-flex items-center justify-center rounded-2xl border border-brand-600 px-6 py-3 text-sm font-semibold text-brand-600 hover:bg-brand-50"
             >
-              👁️ Preview Message
+              Preview Message
             </button>
-            <a href={businessWhatsAppUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700">
-              💬 Send to Customer
-            </a>
+            <button onClick={handleMessageCustomer} className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700">
+              Message Customer
+            </button>
           </div>
         </div>
+        {toast ? <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{toast}</p> : null}
+        {!businessWhatsAppLink.ok ? <p className="mt-4 rounded-2xl bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{businessWhatsAppLink.error}</p> : null}
       </div>
 
       {/* Message Preview Section */}
@@ -128,14 +148,16 @@ export default function AdminOrderDetailPage() {
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Contact</p>
               <p className="mt-3 text-slate-900">{order.customerName}</p>
               <p className="text-sm text-slate-600">{order.phone}</p>
-              <a
-                href={`https://wa.me/${order.whatsapp.replace(/[^0-9]/g, '')}`}
-                target="_blank"
-                rel="noreferrer"
-                className="text-sm text-green-600 hover:text-green-700 font-semibold mt-2 inline-block"
-              >
-                💬 {order.whatsapp}
-              </a>
+              {businessWhatsAppLink.ok && businessWhatsAppLink.url ? (
+                <a
+                  href={businessWhatsAppLink.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-sm text-green-600 hover:text-green-700 font-semibold mt-2 inline-block"
+                >
+                  Chat on WhatsApp
+                </a>
+              ) : null}
             </div>
             <div className="rounded-3xl border border-slate-200 p-6">
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Delivery</p>
@@ -250,17 +272,17 @@ export default function AdminOrderDetailPage() {
             <div className="mt-4 grid gap-3">
               <Button 
                 variant="secondary" 
-                onClick={() => handleUpdate({ status: 'Purchased' })}
+                onClick={() => handleUpdate({ status: 'Picked Up' })}
                 className="w-full"
               >
-                ✓ Mark Purchased
+                Mark Picked Up
               </Button>
               <Button 
                 variant="secondary" 
-                onClick={() => handleUpdate({ status: 'At Dispatch Point' })}
+                  onClick={handleSendToDispatch}
                 className="w-full"
               >
-                🚚 Send to Dispatch
+                  Send to Dispatch
               </Button>
             </div>
           </div>

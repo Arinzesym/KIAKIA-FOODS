@@ -179,3 +179,56 @@ ${confirmationSection}
 Please confirm this order by replying on WhatsApp so ${businessName} can update your status.
 Thank you.`;
 }
+
+export function normalizeWhatsAppNumber(rawPhone: string, defaultCountryCode = '+234') {
+  const trimmed = (rawPhone ?? '').trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const hadPlusPrefix = trimmed.startsWith('+');
+  let digits = trimmed.replace(/\s+/g, '').replace(/[^\d]/g, '');
+
+  if (!digits) {
+    return null;
+  }
+
+  if (digits.startsWith('00')) {
+    digits = digits.slice(2);
+  }
+
+  if (!hadPlusPrefix && digits.startsWith('0')) {
+    digits = digits.slice(1);
+  }
+
+  const countryDigits = defaultCountryCode.replace(/[^\d]/g, '');
+  if (!digits.startsWith(countryDigits)) {
+    digits = `${countryDigits}${digits}`;
+  }
+
+  if (digits.length < 10 || digits.length > 15) {
+    return null;
+  }
+
+  return `+${digits}`;
+}
+
+export function buildWhatsAppLink(phone: string, message: string) {
+  const normalizedNumber = normalizeWhatsAppNumber(phone);
+  if (!normalizedNumber) {
+    return {
+      ok: false as const,
+      error: 'Invalid WhatsApp number. Include a valid Nigerian phone number.',
+      normalizedNumber: null,
+      url: null
+    };
+  }
+
+  const encodedMessage = encodeURIComponent(message ?? '');
+  return {
+    ok: true as const,
+    normalizedNumber,
+    url: `https://wa.me/${normalizedNumber}?text=${encodedMessage}`,
+    error: null
+  };
+}

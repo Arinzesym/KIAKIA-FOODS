@@ -1,8 +1,18 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSupabaseAdminClient } from '@/lib/supabaseAdmin';
-import type { CustomerProfile, EstateBatch, OrderItem, OrderRecord, RiderAssignment, RunnerTask } from '@/lib/types';
-import { canAccessPath, canAccessAdminPath, getLandingPath, isAdminRole, isDeliveryRole, normalizeRole } from '@/lib/access';
+import type {
+  CustomerProfile,
+  DispatchRecord,
+  EstateBatch,
+  EstateRecord,
+  NotificationRecord,
+  OrderItem,
+  OrderRecord,
+  RiderAssignment,
+  RunnerTask
+} from '@/lib/types';
+import { isAdminRole, isDeliveryRole, normalizeRole } from '@/lib/access';
 
 type SnapshotResponse = {
   orders: OrderRecord[];
@@ -10,11 +20,14 @@ type SnapshotResponse = {
   estateBatches: EstateBatch[];
   runnerTasks: RunnerTask[];
   riderAssignments: RiderAssignment[];
+  dispatches: DispatchRecord[];
+  estates: EstateRecord[];
+  notifications: NotificationRecord[];
 };
 
 type MutationBody = {
-  resource?: 'orders' | 'customers' | 'runnerTasks' | 'estateBatches' | 'riderAssignments';
-  action?: 'create' | 'update' | 'delete';
+  resource?: 'orders' | 'customers' | 'runnerTasks' | 'estateBatches' | 'riderAssignments' | 'dispatches' | 'estates' | 'notifications';
+  action?: 'create' | 'update' | 'updateByOrderId' | 'delete';
   id?: string;
   payload?: Record<string, unknown>;
 };
@@ -28,6 +41,13 @@ function toNumber(value: unknown) {
 
 function toText(value: unknown) {
   return typeof value === 'string' ? value : '';
+}
+
+function toStringArray(value: unknown) {
+  if (!Array.isArray(value)) {
+    return [] as string[];
+  }
+  return value.map((item) => String(item ?? '')).filter(Boolean);
 }
 
 function toOrderItems(value: unknown): OrderItem[] {
@@ -89,18 +109,25 @@ function scopeSnapshot(snapshot: AppSnapshot, role: ReturnType<typeof normalizeR
       customers: [],
       estateBatches: [],
       runnerTasks: [],
-      riderAssignments: []
+      riderAssignments: [],
+      dispatches: [],
+      estates: [],
+      notifications: []
     };
   }
 
   const riderAssignments = snapshot.riderAssignments.filter((assignment) => matchesAssignedName(assignment.assignedRider, role, authName));
+  const allowedOrderIds = new Set(riderAssignments.map((assignment) => assignment.orderId));
 
   return {
-    orders: [],
+    orders: snapshot.orders.filter((order) => allowedOrderIds.has(order.id)),
     customers: [],
-    estateBatches: [],
-    runnerTasks: [],
-    riderAssignments
+    estateBatches: snapshot.estateBatches.filter((batch) => matchesAssignedName(batch.assignedRider, role, authName)),
+    runnerTasks: snapshot.runnerTasks,
+    riderAssignments,
+    dispatches: snapshot.dispatches.filter((dispatch) => allowedOrderIds.has(dispatch.orderId)),
+    estates: snapshot.estates,
+    notifications: snapshot.notifications.filter((item) => !item.orderId || allowedOrderIds.has(item.orderId))
   };
 }
 
@@ -109,178 +136,15 @@ function canMutateResource(role: ReturnType<typeof normalizeRole>, resource: Mut
     return false;
   }
 
-  if (resource === 'orders') {
+  if (['orders', 'customers', 'runnerTasks', 'estateBatches', 'dispatches', 'estates', 'notifications'].includes(resource)) {
     return isAdminRole(role);
   }
 
-  if (resource === 'customers') {
-    return role === 'owner';
-  }
-
-  if (resource === 'runnerTasks') {
-    if (action === 'update') {
-      return role === 'owner';
-    }
-
-    return role === 'owner';
-  }
-
-  if (resource === 'estateBatches') {
-    return role === 'owner' || role === 'cofounder';
-  }
-
   if (resource === 'riderAssignments') {
-    if (action === 'delete') {
-      return role === 'owner';
-    }
-
-    return role === 'owner' || role === 'runner' || role === 'rider';
+    return role === 'owner' || role === 'cofounder' || role === 'runner' || role === 'rider';
   }
 
   return false;
-}
-
-async function loadSnapshot(): Promise<SnapshotResponse> {
-  const supabase = getSupabaseAdminClient();
-  if (!supabase) {
-    throw new Error('Database not configured. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
-  }
-
-  const [ordersResult, orderItemsResult, customersResult, batchesResult, runnerTasksResult, riderAssignmentsResult, usersResult] = await Promise.all([
-    supabase
-      .from('orders')
-      .select('id, customer_id, customer_name, phone, whatsapp, email, estate, address, status, subtotal, service_fee, delivery_fee, additional_charges, grand_total, batch_id, assigned_rider_id, purchase_cost, notes, created_at, updated_at')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('order_items')
-      .select('id, order_id, name, quantity, price')
-      .order('created_at', { ascending: true }),
-    supabase
-      .from('customers')
-      .select('id, name, phone, email, estate, address, total_orders, lifetime_spend, repeat_orders, notes, created_at, updated_at')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('estate_batches')
-      .select('id, estate, order_count, total_value, assigned_rider_id, status, created_at')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('runner_tasks')
-      .select('id, order_id, assigned_runner_id, status, purchase_cost, notes, updated_at')
-      .order('updated_at', { ascending: false }),
-    supabase
-      .from('rider_assignments')
-      .select('id, order_id, assigned_rider_id, status, proof_url, delivery_notes, updated_at')
-      .order('updated_at', { ascending: false }),
-    supabase
-      .from('users')
-      .select('id, name')
-  ]);
-
-  if (ordersResult.error) throw new Error(ordersResult.error.message);
-  if (orderItemsResult.error) throw new Error(orderItemsResult.error.message);
-  if (customersResult.error) throw new Error(customersResult.error.message);
-  if (batchesResult.error) throw new Error(batchesResult.error.message);
-  if (runnerTasksResult.error) throw new Error(runnerTasksResult.error.message);
-  if (riderAssignmentsResult.error) throw new Error(riderAssignmentsResult.error.message);
-  if (usersResult.error) throw new Error(usersResult.error.message);
-
-  const userNameById = new Map((usersResult.data ?? []).map((user) => [String(user.id), String(user.name ?? '')]));
-  const itemsByOrderId = new Map<string, OrderItem[]>();
-  for (const row of orderItemsResult.data ?? []) {
-    const orderId = String(row.order_id ?? '');
-    const current = itemsByOrderId.get(orderId) ?? [];
-    current.push({
-      id: String(row.id),
-      name: String(row.name ?? ''),
-      quantity: toNumber(row.quantity),
-      price: toNumber(row.price)
-    });
-    itemsByOrderId.set(orderId, current);
-  }
-
-  const orders: OrderRecord[] = (ordersResult.data ?? []).map((row) => ({
-    id: String(row.id),
-    customerId: String(row.customer_id ?? ''),
-    customerName: String(row.customer_name ?? ''),
-    phone: String(row.phone ?? ''),
-    whatsapp: String(row.whatsapp ?? ''),
-    email: String(row.email ?? ''),
-    estate: String(row.estate ?? ''),
-    address: String(row.address ?? ''),
-    status: String(row.status ?? 'New') as OrderRecord['status'],
-    items: itemsByOrderId.get(String(row.id)) ?? [],
-    subtotal: toNumber(row.subtotal),
-    serviceFee: toNumber(row.service_fee),
-    deliveryFee: toNumber(row.delivery_fee),
-    additionalCharges: toNumber(row.additional_charges),
-    grandTotal: toNumber(row.grand_total),
-    batchId: String(row.batch_id ?? ''),
-    assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
-    purchaseCost: toNumber(row.purchase_cost),
-    notes: String(row.notes ?? ''),
-    createdAt: String(row.created_at ?? new Date().toISOString()),
-    updatedAt: String(row.updated_at ?? new Date().toISOString())
-  }));
-
-  const orderById = new Map(orders.map((order) => [order.id, order]));
-
-  const customers: CustomerProfile[] = (customersResult.data ?? []).map((row) => ({
-    id: String(row.id),
-    name: String(row.name ?? ''),
-    phone: String(row.phone ?? ''),
-    email: String(row.email ?? ''),
-    estate: String(row.estate ?? ''),
-    address: String(row.address ?? ''),
-    totalOrders: toNumber(row.total_orders),
-    lifetimeSpend: toNumber(row.lifetime_spend),
-    repeatOrders: toNumber(row.repeat_orders),
-    lastOrderDate: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
-    notes: String(row.notes ?? '')
-  }));
-
-  const estateBatches: EstateBatch[] = (batchesResult.data ?? []).map((row) => ({
-    id: String(row.id),
-    estate: String(row.estate ?? ''),
-    orders: toNumber(row.order_count),
-    totalValue: toNumber(row.total_value),
-    assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
-    status: String(row.status ?? 'Open'),
-    createdAt: String(row.created_at ?? new Date().toISOString())
-  }));
-
-  const runnerTasks: RunnerTask[] = (runnerTasksResult.data ?? []).map((row) => ({
-    id: String(row.id),
-    orderId: String(row.order_id ?? ''),
-    task: `Source items for ${String(row.order_id ?? '')}`,
-    status: String(row.status ?? 'Pending'),
-    assignedTo: userNameById.get(String(row.assigned_runner_id ?? '')) ?? '',
-    purchaseCost: toNumber(row.purchase_cost),
-    notes: String(row.notes ?? ''),
-    updatedAt: String(row.updated_at ?? new Date().toISOString())
-  }));
-
-  const riderAssignments: RiderAssignment[] = (riderAssignmentsResult.data ?? []).map((row) => {
-    const order = orderById.get(String(row.order_id ?? ''));
-    return {
-      id: String(row.id),
-      orderId: String(row.order_id ?? ''),
-      customerName: order?.customerName ?? '',
-      estate: order?.estate ?? '',
-      status: String(row.status ?? 'Assigned'),
-      assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
-      proofUrl: String(row.proof_url ?? ''),
-      notes: String(row.delivery_notes ?? ''),
-      updatedAt: String(row.updated_at ?? new Date().toISOString())
-    };
-  });
-
-  return {
-    orders,
-    customers,
-    estateBatches,
-    runnerTasks,
-    riderAssignments
-  };
 }
 
 async function findUserIdByName(name: string) {
@@ -296,18 +160,7 @@ async function findUserIdByName(name: string) {
     .limit(1)
     .maybeSingle();
 
-  if (data?.id) {
-    return String(data.id);
-  }
-
-  const { data: fallbackData } = await supabase
-    .from('users')
-    .select('id')
-    .eq('role', 'runner')
-    .limit(1)
-    .maybeSingle();
-
-  return fallbackData?.id ? String(fallbackData.id) : null;
+  return data?.id ? String(data.id) : null;
 }
 
 async function upsertCustomerFromOrderLike(payload: Record<string, unknown>, orderGrandTotal: number) {
@@ -370,6 +223,242 @@ async function upsertCustomerFromOrderLike(payload: Record<string, unknown>, ord
   return String(data.id);
 }
 
+async function loadSnapshot(): Promise<SnapshotResponse> {
+  const supabase = getSupabaseAdminClient();
+  if (!supabase) {
+    throw new Error('Database not configured. Add NEXT_PUBLIC_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
+  }
+
+  const [
+    ordersResult,
+    orderItemsResult,
+    customersResult,
+    batchesResult,
+    runnerTasksResult,
+    riderAssignmentsResult,
+    dispatchesResult,
+    estatesResult,
+    notificationsResult,
+    usersResult
+  ] = await Promise.all([
+    supabase
+      .from('orders')
+      .select('id, customer_id, customer_name, phone, whatsapp, email, estate, address, status, payment_status, subtotal, service_fee, delivery_fee, additional_charges, grand_total, batch_id, assigned_rider_id, dispatch_id, purchase_cost, notes, delivery_time_minutes, created_at, updated_at')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('order_items')
+      .select('id, order_id, name, quantity, price')
+      .order('created_at', { ascending: true }),
+    supabase
+      .from('customers')
+      .select('id, name, phone, email, estate, address, total_orders, lifetime_spend, repeat_orders, notes, created_at, updated_at')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('estate_batches')
+      .select('id, name, estate, estate_code, delivery_zone, order_count, total_value, assigned_rider_id, order_ids, status, created_at, updated_at')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('runner_tasks')
+      .select('id, order_id, assigned_runner_id, status, purchase_cost, notes, updated_at')
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('rider_assignments')
+      .select('id, order_id, assigned_rider_id, status, proof_url, delivery_notes, accepted_at, picked_up_at, in_transit_at, delivered_at, completed_at, updated_at')
+      .order('updated_at', { ascending: false }),
+    supabase
+      .from('dispatches')
+      .select('id, order_id, status, assigned_rider_id, created_at, updated_at')
+      .order('created_at', { ascending: false }),
+    supabase
+      .from('estates')
+      .select('id, name, code, delivery_zone, assigned_riders, number_of_orders, daily_deliveries, completed_deliveries, pending_deliveries, failed_deliveries, revenue_generated, created_at, updated_at')
+      .order('name', { ascending: true }),
+    supabase
+      .from('notifications')
+      .select('id, type, title, message, order_id, batch_id, is_read, created_at')
+      .order('created_at', { ascending: false })
+      .limit(100),
+    supabase
+      .from('users')
+      .select('id, name')
+  ]);
+
+  if (ordersResult.error) throw new Error(ordersResult.error.message);
+  if (orderItemsResult.error) throw new Error(orderItemsResult.error.message);
+  if (customersResult.error) throw new Error(customersResult.error.message);
+  if (batchesResult.error) throw new Error(batchesResult.error.message);
+  if (runnerTasksResult.error) throw new Error(runnerTasksResult.error.message);
+  if (riderAssignmentsResult.error) throw new Error(riderAssignmentsResult.error.message);
+  if (dispatchesResult.error) throw new Error(dispatchesResult.error.message);
+  if (estatesResult.error) throw new Error(estatesResult.error.message);
+  if (notificationsResult.error) throw new Error(notificationsResult.error.message);
+  if (usersResult.error) throw new Error(usersResult.error.message);
+
+  const userNameById = new Map((usersResult.data ?? []).map((user) => [String(user.id), String(user.name ?? '')]));
+  const itemsByOrderId = new Map<string, OrderItem[]>();
+  for (const row of orderItemsResult.data ?? []) {
+    const orderId = String(row.order_id ?? '');
+    const current = itemsByOrderId.get(orderId) ?? [];
+    current.push({
+      id: String(row.id),
+      name: String(row.name ?? ''),
+      quantity: toNumber(row.quantity),
+      price: toNumber(row.price)
+    });
+    itemsByOrderId.set(orderId, current);
+  }
+
+  const orders: OrderRecord[] = (ordersResult.data ?? []).map((row) => {
+    const items = itemsByOrderId.get(String(row.id)) ?? [];
+    return {
+      id: String(row.id),
+      orderNumber: String(row.id),
+      customerId: String(row.customer_id ?? ''),
+      customerName: String(row.customer_name ?? ''),
+      phone: String(row.phone ?? ''),
+      whatsapp: String(row.whatsapp ?? ''),
+      email: String(row.email ?? ''),
+      estate: String(row.estate ?? ''),
+      address: String(row.address ?? ''),
+      status: String(row.status ?? 'New') as OrderRecord['status'],
+      paymentStatus: String(row.payment_status ?? 'Pending') as OrderRecord['paymentStatus'],
+      items,
+      quantity: items.reduce((sum, item) => sum + toNumber(item.quantity), 0),
+      subtotal: toNumber(row.subtotal),
+      serviceFee: toNumber(row.service_fee),
+      deliveryFee: toNumber(row.delivery_fee),
+      additionalCharges: toNumber(row.additional_charges),
+      grandTotal: toNumber(row.grand_total),
+      batchId: String(row.batch_id ?? ''),
+      assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
+      dispatchId: String(row.dispatch_id ?? ''),
+      purchaseCost: toNumber(row.purchase_cost),
+      notes: String(row.notes ?? ''),
+      deliveryTimeMinutes: toNumber(row.delivery_time_minutes),
+      createdAt: String(row.created_at ?? new Date().toISOString()),
+      updatedAt: String(row.updated_at ?? new Date().toISOString())
+    };
+  });
+
+  const orderById = new Map(orders.map((order) => [order.id, order]));
+
+  const customers: CustomerProfile[] = (customersResult.data ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    phone: String(row.phone ?? ''),
+    email: String(row.email ?? ''),
+    estate: String(row.estate ?? ''),
+    address: String(row.address ?? ''),
+    totalOrders: toNumber(row.total_orders),
+    lifetimeSpend: toNumber(row.lifetime_spend),
+    repeatOrders: toNumber(row.repeat_orders),
+    lastOrderDate: String(row.updated_at ?? row.created_at ?? new Date().toISOString()),
+    notes: String(row.notes ?? '')
+  }));
+
+  const estateBatches: EstateBatch[] = (batchesResult.data ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name ?? row.id ?? ''),
+    estate: String(row.estate ?? ''),
+    estateCode: String(row.estate_code ?? ''),
+    deliveryZone: String(row.delivery_zone ?? ''),
+    orderIds: toStringArray(row.order_ids),
+    orders: toNumber(row.order_count),
+    totalValue: toNumber(row.total_value),
+    assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
+    status: String(row.status ?? 'Pending') as EstateBatch['status'],
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+    updatedAt: String(row.updated_at ?? new Date().toISOString())
+  }));
+
+  const runnerTasks: RunnerTask[] = (runnerTasksResult.data ?? []).map((row) => ({
+    id: String(row.id),
+    orderId: String(row.order_id ?? ''),
+    task: `Source items for ${String(row.order_id ?? '')}`,
+    status: String(row.status ?? 'Pending'),
+    assignedTo: userNameById.get(String(row.assigned_runner_id ?? '')) ?? '',
+    purchaseCost: toNumber(row.purchase_cost),
+    notes: String(row.notes ?? ''),
+    updatedAt: String(row.updated_at ?? new Date().toISOString())
+  }));
+
+  const riderAssignments: RiderAssignment[] = (riderAssignmentsResult.data ?? []).map((row) => {
+    const order = orderById.get(String(row.order_id ?? ''));
+    return {
+      id: String(row.id),
+      orderId: String(row.order_id ?? ''),
+      orderNumber: order?.orderNumber ?? String(row.order_id ?? ''),
+      customerName: order?.customerName ?? '',
+      phone: order?.phone ?? '',
+      address: order?.address ?? '',
+      estate: order?.estate ?? '',
+      status: String(row.status ?? 'Assigned') as RiderAssignment['status'],
+      assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
+      proofUrl: String(row.proof_url ?? ''),
+      notes: String(row.delivery_notes ?? ''),
+      acceptedAt: String(row.accepted_at ?? ''),
+      pickedUpAt: String(row.picked_up_at ?? ''),
+      inTransitAt: String(row.in_transit_at ?? ''),
+      deliveredAt: String(row.delivered_at ?? ''),
+      completedAt: String(row.completed_at ?? ''),
+      updatedAt: String(row.updated_at ?? new Date().toISOString())
+    };
+  });
+
+  const dispatches: DispatchRecord[] = (dispatchesResult.data ?? []).map((row) => {
+    const order = orderById.get(String(row.order_id ?? ''));
+    return {
+      id: String(row.id),
+      orderId: String(row.order_id ?? ''),
+      orderNumber: order?.orderNumber ?? String(row.order_id ?? ''),
+      customerName: order?.customerName ?? '',
+      estate: order?.estate ?? '',
+      status: String(row.status ?? 'Unassigned') as DispatchRecord['status'],
+      assignedRider: userNameById.get(String(row.assigned_rider_id ?? '')) ?? '',
+      createdAt: String(row.created_at ?? new Date().toISOString()),
+      updatedAt: String(row.updated_at ?? new Date().toISOString())
+    };
+  });
+
+  const estates: EstateRecord[] = (estatesResult.data ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name ?? ''),
+    code: String(row.code ?? ''),
+    deliveryZone: String(row.delivery_zone ?? ''),
+    assignedRiders: toStringArray(row.assigned_riders),
+    numberOfOrders: toNumber(row.number_of_orders),
+    dailyDeliveries: toNumber(row.daily_deliveries),
+    completedDeliveries: toNumber(row.completed_deliveries),
+    pendingDeliveries: toNumber(row.pending_deliveries),
+    failedDeliveries: toNumber(row.failed_deliveries),
+    revenueGenerated: toNumber(row.revenue_generated),
+    createdAt: String(row.created_at ?? new Date().toISOString()),
+    updatedAt: String(row.updated_at ?? new Date().toISOString())
+  }));
+
+  const notifications: NotificationRecord[] = (notificationsResult.data ?? []).map((row) => ({
+    id: String(row.id),
+    type: String(row.type ?? 'New Order') as NotificationRecord['type'],
+    title: String(row.title ?? ''),
+    message: String(row.message ?? ''),
+    orderId: String(row.order_id ?? ''),
+    batchId: String(row.batch_id ?? ''),
+    read: Boolean(row.is_read),
+    createdAt: String(row.created_at ?? new Date().toISOString())
+  }));
+
+  return {
+    orders,
+    customers,
+    estateBatches,
+    runnerTasks,
+    riderAssignments,
+    dispatches,
+    estates,
+    notifications
+  };
+}
+
 export async function GET() {
   try {
     const snapshot = await loadSnapshot();
@@ -428,6 +517,7 @@ export async function POST(request: Request) {
         estate: toText(payload.estate),
         address: toText(payload.address),
         status: toText(payload.status) || 'New',
+        payment_status: toText(payload.paymentStatus) || 'Pending',
         subtotal,
         service_fee: serviceFee,
         delivery_fee: deliveryFee,
@@ -435,8 +525,10 @@ export async function POST(request: Request) {
         grand_total: grandTotal,
         batch_id: toText(payload.batchId) || null,
         assigned_rider_id: assignedRiderId,
+        dispatch_id: toText(payload.dispatchId) || null,
         purchase_cost: toNumber(payload.purchaseCost),
         notes: toText(payload.notes),
+        delivery_time_minutes: toNumber(payload.deliveryTimeMinutes),
         created_at: toText(payload.createdAt) || now,
         updated_at: toText(payload.updatedAt) || now
       });
@@ -445,18 +537,17 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: orderError.message }, { status: 500 });
       }
 
-      const items = parsedItems.map((item) => ({
-        order_id: orderId,
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-        total: item.quantity * item.price,
-        created_at: now,
-        updated_at: now
-      }));
+      if (parsedItems.length > 0) {
+        const { error: itemError } = await supabase.from('order_items').insert(parsedItems.map((item) => ({
+          order_id: orderId,
+          name: item.name,
+          quantity: item.quantity,
+          price: item.price,
+          total: item.quantity * item.price,
+          created_at: now,
+          updated_at: now
+        })));
 
-      if (items.length > 0) {
-        const { error: itemError } = await supabase.from('order_items').insert(items);
         if (itemError) {
           return NextResponse.json({ error: itemError.message }, { status: 500 });
         }
@@ -475,9 +566,12 @@ export async function POST(request: Request) {
       };
 
       if ('status' in payload) updatePayload.status = toText(payload.status);
+      if ('paymentStatus' in payload) updatePayload.payment_status = toText(payload.paymentStatus);
       if ('notes' in payload) updatePayload.notes = toText(payload.notes);
       if ('purchaseCost' in payload) updatePayload.purchase_cost = toNumber(payload.purchaseCost);
       if ('batchId' in payload) updatePayload.batch_id = toText(payload.batchId) || null;
+      if ('dispatchId' in payload) updatePayload.dispatch_id = toText(payload.dispatchId) || null;
+      if ('deliveryTimeMinutes' in payload) updatePayload.delivery_time_minutes = toNumber(payload.deliveryTimeMinutes);
 
       if ('assignedRider' in payload) {
         updatePayload.assigned_rider_id = await findUserIdByName(toText(payload.assignedRider));
@@ -604,6 +698,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (resource === 'runnerTasks' && action === 'create') {
+      const assignedRunnerId = await findUserIdByName(toText(payload.assignedTo));
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('runner_tasks').insert({
+        id: toText(payload.id) || undefined,
+        order_id: toText(payload.orderId),
+        assigned_runner_id: assignedRunnerId,
+        status: toText(payload.status) || 'Pending',
+        purchase_cost: toNumber(payload.purchaseCost),
+        notes: toText(payload.notes),
+        created_at: now,
+        updated_at: now
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+
     if (resource === 'runnerTasks' && action === 'update') {
       if (!id) {
         return NextResponse.json({ error: 'Runner task id is required.' }, { status: 400 });
@@ -641,6 +756,30 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (resource === 'riderAssignments' && action === 'create') {
+      const assignedRiderId = await findUserIdByName(toText(payload.assignedRider));
+      const { error } = await supabase.from('rider_assignments').insert({
+        id: toText(payload.id) || undefined,
+        order_id: toText(payload.orderId),
+        assigned_rider_id: assignedRiderId,
+        status: toText(payload.status) || 'Assigned',
+        proof_url: toText(payload.proofUrl),
+        delivery_notes: toText(payload.notes),
+        accepted_at: toText(payload.acceptedAt) || null,
+        picked_up_at: toText(payload.pickedUpAt) || null,
+        in_transit_at: toText(payload.inTransitAt) || null,
+        delivered_at: toText(payload.deliveredAt) || null,
+        completed_at: toText(payload.completedAt) || null,
+        updated_at: toText(payload.updatedAt) || new Date().toISOString()
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+
     if (resource === 'riderAssignments' && action === 'update') {
       if (!id) {
         return NextResponse.json({ error: 'Rider assignment id is required.' }, { status: 400 });
@@ -654,9 +793,43 @@ export async function POST(request: Request) {
           delivery_notes: toText(payload.notes),
           proof_url: toText(payload.proofUrl),
           assigned_rider_id: assignedRiderId,
+          accepted_at: toText(payload.acceptedAt) || null,
+          picked_up_at: toText(payload.pickedUpAt) || null,
+          in_transit_at: toText(payload.inTransitAt) || null,
+          delivered_at: toText(payload.deliveredAt) || null,
+          completed_at: toText(payload.completedAt) || null,
           updated_at: toText(payload.updatedAt) || new Date().toISOString()
         })
         .eq('id', id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'riderAssignments' && action === 'updateByOrderId') {
+      if (!id) {
+        return NextResponse.json({ error: 'Order id is required for rider assignment update.' }, { status: 400 });
+      }
+
+      const assignedRiderId = await findUserIdByName(toText(payload.assignedRider));
+      const { error } = await supabase
+        .from('rider_assignments')
+        .update({
+          status: toText(payload.status),
+          delivery_notes: toText(payload.notes),
+          proof_url: toText(payload.proofUrl),
+          assigned_rider_id: assignedRiderId,
+          accepted_at: toText(payload.acceptedAt) || null,
+          picked_up_at: toText(payload.pickedUpAt) || null,
+          in_transit_at: toText(payload.inTransitAt) || null,
+          delivered_at: toText(payload.deliveredAt) || null,
+          completed_at: toText(payload.completedAt) || null,
+          updated_at: toText(payload.updatedAt) || new Date().toISOString()
+        })
+        .eq('order_id', id);
 
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
@@ -678,6 +851,31 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true });
     }
 
+    if (resource === 'estateBatches' && action === 'create') {
+      const assignedRiderId = await findUserIdByName(toText(payload.assignedRider));
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('estate_batches').insert({
+        id: toText(payload.id) || undefined,
+        name: toText(payload.name),
+        estate: toText(payload.estate),
+        estate_code: toText(payload.estateCode),
+        delivery_zone: toText(payload.deliveryZone),
+        order_count: toNumber(payload.orders),
+        total_value: toNumber(payload.totalValue),
+        assigned_rider_id: assignedRiderId,
+        order_ids: toStringArray(payload.orderIds),
+        status: toText(payload.status) || 'Pending',
+        created_at: now,
+        updated_at: now
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+
     if (resource === 'estateBatches' && action === 'update') {
       if (!id) {
         return NextResponse.json({ error: 'Batch id is required.' }, { status: 400 });
@@ -687,11 +885,15 @@ export async function POST(request: Request) {
       const { error } = await supabase
         .from('estate_batches')
         .update({
+          name: toText(payload.name),
           estate: toText(payload.estate),
+          estate_code: toText(payload.estateCode),
+          delivery_zone: toText(payload.deliveryZone),
           order_count: toNumber(payload.orders),
           total_value: toNumber(payload.totalValue),
           status: toText(payload.status),
           assigned_rider_id: assignedRiderId,
+          order_ids: toStringArray(payload.orderIds),
           updated_at: new Date().toISOString()
         })
         .eq('id', id);
@@ -709,6 +911,181 @@ export async function POST(request: Request) {
       }
 
       const { error } = await supabase.from('estate_batches').delete().eq('id', id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'dispatches' && action === 'create') {
+      const assignedRiderId = await findUserIdByName(toText(payload.assignedRider));
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('dispatches').insert({
+        id: toText(payload.id) || undefined,
+        order_id: toText(payload.orderId),
+        status: toText(payload.status) || 'Unassigned',
+        assigned_rider_id: assignedRiderId,
+        created_at: toText(payload.createdAt) || now,
+        updated_at: toText(payload.updatedAt) || now
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+
+    if (resource === 'dispatches' && action === 'update') {
+      if (!id) {
+        return NextResponse.json({ error: 'Dispatch id is required.' }, { status: 400 });
+      }
+
+      const assignedRiderId = await findUserIdByName(toText(payload.assignedRider));
+      const { error } = await supabase
+        .from('dispatches')
+        .update({
+          status: toText(payload.status),
+          assigned_rider_id: assignedRiderId,
+          updated_at: toText(payload.updatedAt) || new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'dispatches' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Dispatch id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('dispatches').delete().eq('id', id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'estates' && action === 'create') {
+      const now = new Date().toISOString();
+      const { error } = await supabase.from('estates').insert({
+        id: toText(payload.id) || undefined,
+        name: toText(payload.name),
+        code: toText(payload.code),
+        delivery_zone: toText(payload.deliveryZone),
+        assigned_riders: toStringArray(payload.assignedRiders),
+        number_of_orders: toNumber(payload.numberOfOrders),
+        daily_deliveries: toNumber(payload.dailyDeliveries),
+        completed_deliveries: toNumber(payload.completedDeliveries),
+        pending_deliveries: toNumber(payload.pendingDeliveries),
+        failed_deliveries: toNumber(payload.failedDeliveries),
+        revenue_generated: toNumber(payload.revenueGenerated),
+        created_at: now,
+        updated_at: now
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+
+    if (resource === 'estates' && action === 'update') {
+      if (!id) {
+        return NextResponse.json({ error: 'Estate id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from('estates')
+        .update({
+          name: toText(payload.name),
+          code: toText(payload.code),
+          delivery_zone: toText(payload.deliveryZone),
+          assigned_riders: toStringArray(payload.assignedRiders),
+          number_of_orders: toNumber(payload.numberOfOrders),
+          daily_deliveries: toNumber(payload.dailyDeliveries),
+          completed_deliveries: toNumber(payload.completedDeliveries),
+          pending_deliveries: toNumber(payload.pendingDeliveries),
+          failed_deliveries: toNumber(payload.failedDeliveries),
+          revenue_generated: toNumber(payload.revenueGenerated),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'estates' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Estate id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('estates').delete().eq('id', id);
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'notifications' && action === 'create') {
+      const { error } = await supabase.from('notifications').insert({
+        id: toText(payload.id) || undefined,
+        type: toText(payload.type),
+        title: toText(payload.title),
+        message: toText(payload.message),
+        order_id: toText(payload.orderId) || null,
+        batch_id: toText(payload.batchId) || null,
+        is_read: Boolean(payload.read),
+        created_at: toText(payload.createdAt) || new Date().toISOString()
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true }, { status: 201 });
+    }
+
+    if (resource === 'notifications' && action === 'update') {
+      if (!id) {
+        return NextResponse.json({ error: 'Notification id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase
+        .from('notifications')
+        .update({
+          type: toText(payload.type) || undefined,
+          title: toText(payload.title) || undefined,
+          message: toText(payload.message) || undefined,
+          is_read: 'read' in payload ? Boolean(payload.read) : undefined
+        })
+        .eq('id', id);
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true });
+    }
+
+    if (resource === 'notifications' && action === 'delete') {
+      if (!id) {
+        return NextResponse.json({ error: 'Notification id is required.' }, { status: 400 });
+      }
+
+      const { error } = await supabase.from('notifications').delete().eq('id', id);
       if (error) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }

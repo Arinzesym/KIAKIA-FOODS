@@ -6,6 +6,7 @@ export type AuthRole = AppRole | '';
 const cofounderAllowedAdminPrefixes = [
   '/admin/dashboard',
   '/admin/orders',
+  '/admin/dispatch',
   '/admin/estate-batching',
   '/admin/reports'
 ];

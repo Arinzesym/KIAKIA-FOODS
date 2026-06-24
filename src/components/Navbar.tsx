@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { Logo } from '@/components/Logo';
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -56,12 +55,7 @@ export function Navbar() {
   };
 
   return (
-    <motion.header
-      initial={{ y: -24, opacity: 0 }}
-      animate={{ y: 0, opacity: 1 }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      className="sticky top-0 z-40 border-b border-brand-100 bg-white/90 backdrop-blur-xl"
-    >
+    <header className="sticky top-0 z-40 border-b border-brand-100 bg-white/90 backdrop-blur-xl">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
         <Logo />
         {isAuthPage ? (
@@ -72,11 +66,11 @@ export function Navbar() {
           <>
             <nav className="hidden items-center gap-4 overflow-x-auto md:flex">
               {!showPublicNav && visibleNavItems.map((item) => (
-                <motion.div key={item.href} whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}>
+                <div key={item.href} className="transition-transform hover:-translate-y-0.5 active:scale-[0.98]">
                   <Link href={item.href} className="whitespace-nowrap text-sm font-medium text-slate-700 transition hover:text-brand-600">
                     {item.label}
                   </Link>
-                </motion.div>
+                </div>
               ))}
               {!showPublicNav && visibleNavItems.length === 0 && role ? (
                 <Link href={getLandingPath(role)} className="whitespace-nowrap text-sm font-medium text-slate-700 transition hover:text-brand-600">
@@ -99,6 +93,6 @@ export function Navbar() {
           </>
         )}
       </div>
-    </motion.header>
+    </header>
   );
 }

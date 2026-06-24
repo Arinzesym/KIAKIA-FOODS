@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid, Legend } from 'recharts';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency } from '@/lib/utils';
+import { downloadCsv, exportOrdersAsCsv, exportRunnerTasksAsCsv, exportRiderAssignmentsAsCsv, formatCurrency } from '@/lib/utils';
 import { useOMSStore } from '@/lib/StoreContext';
 import { orderStatusMap } from '@/lib/mockData';
 
@@ -418,10 +418,27 @@ export function FinanceSummaryPanel() {
 }
 
 export function ExportReportsPanel() {
+  const { orders, runnerTasks, riderAssignments } = useOMSStore();
+
   const reports = [
-    { title: 'Daily order summary', description: 'Download today’s order and batch summary.', file: 'daily-summary.csv' },
-    { title: 'Runner performance', description: 'Export runner task and purchase tracking.', file: 'runner-performance.csv' },
-    { title: 'Rider delivery report', description: 'View delivery completion and proof statuses.', file: 'rider-report.csv' }
+    {
+      title: 'Daily order summary',
+      description: 'Download the full orders ledger for admin review.',
+      label: 'Download orders',
+      action: () => downloadCsv('kiakia-orders.csv', exportOrdersAsCsv(orders))
+    },
+    {
+      title: 'Runner performance',
+      description: 'Export runner tasks, purchase costs and sourcing status.',
+      label: 'Download runner tasks',
+      action: () => downloadCsv('runner-tasks.csv', exportRunnerTasksAsCsv(runnerTasks))
+    },
+    {
+      title: 'Rider delivery report',
+      description: 'View delivery completion and proof statuses.',
+      label: 'Download rider assignments',
+      action: () => downloadCsv('rider-assignments.csv', exportRiderAssignmentsAsCsv(riderAssignments))
+    }
   ];
 
   return (
@@ -434,13 +451,13 @@ export function ExportReportsPanel() {
         </div>
         <div className="space-y-4">
           {reports.map((report) => (
-            <div key={report.file} className="rounded-3xl border border-slate-200 p-6">
+            <div key={report.title} className="rounded-3xl border border-slate-200 p-6">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="font-semibold text-slate-950">{report.title}</p>
                   <p className="mt-1 text-sm text-slate-600">{report.description}</p>
                 </div>
-                <Button variant="secondary">Download</Button>
+                <Button variant="secondary" onClick={report.action}>{report.label}</Button>
               </div>
             </div>
           ))}

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 import { Logo } from '@/components/Logo';
+import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
 
 const navItems = [
   { label: 'Dashboard', href: '/admin/dashboard' },
@@ -17,6 +19,22 @@ const navItems = [
 ];
 
 export function Navbar() {
+  const router = useRouter();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    // Check if user is logged in by checking for auth token
+    const authToken = document.cookie.split('; ').find(row => row.startsWith('auth-token='));
+    setIsLoggedIn(!!authToken);
+  }, []);
+
+  const handleLogout = () => {
+    // Clear auth cookie
+    document.cookie = 'auth-token=; path=/; max-age=0';
+    setIsLoggedIn(false);
+    router.push('/auth/admin-login');
+  };
+
   return (
     <motion.header
       initial={{ y: -24, opacity: 0 }}
@@ -35,6 +53,14 @@ export function Navbar() {
             </motion.div>
           ))}
         </nav>
+        {isLoggedIn && (
+          <button
+            onClick={handleLogout}
+            className="ml-4 rounded-2xl bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-100"
+          >
+            Logout
+          </button>
+        )}
       </div>
     </motion.header>
   );

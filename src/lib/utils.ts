@@ -1,4 +1,14 @@
-import type { CartItem } from '@/lib/types';
+import type { CartItem, RiderAssignment, RunnerTask } from '@/lib/types';
+
+export interface AdminSettings {
+  businessName: string;
+  whatsappNumber: string;
+  businessAccountNumber: string;
+  serviceFee: number;
+  deliveryFee: number;
+}
+
+const ADMIN_SETTINGS_KEY = 'kiakia-oms-admin-settings-v1';
 
 export function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(' ');
@@ -10,6 +20,25 @@ export function formatCurrency(value: number) {
 
 function escapeCsv(value: string) {
   return `"${value.replace(/"/g, '""')}"`;
+}
+
+export function formatCsv(rows: string[][]) {
+  return rows.map((row) => row.map((cell) => escapeCsv(cell ?? '')).join(',')).join('\n');
+}
+
+export function loadAdminSettings(): AdminSettings | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = window.localStorage.getItem(ADMIN_SETTINGS_KEY);
+    return saved ? JSON.parse(saved) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveAdminSettings(settings: AdminSettings) {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(settings));
 }
 
 export function exportOrdersAsCsv(orders: import('./types').OrderRecord[]) {
@@ -84,6 +113,18 @@ export function downloadCsv(filename: string, csv: string) {
   URL.revokeObjectURL(url);
 }
 
+export function exportRunnerTasksAsCsv(tasks: RunnerTask[]) {
+  const header = ['Task ID', 'Order ID', 'Assigned to', 'Status', 'Purchase Cost', 'Updated At', 'Notes'];
+  const rows = tasks.map((task) => [task.id, task.orderId, task.assignedTo, task.status, task.purchaseCost.toString(), task.updatedAt, task.notes]);
+  return formatCsv([header, ...rows]);
+}
+
+export function exportRiderAssignmentsAsCsv(assignments: RiderAssignment[]) {
+  const header = ['Assignment ID', 'Order ID', 'Customer', 'Estate', 'Rider', 'Status', 'Proof URL', 'Updated At', 'Notes'];
+  const rows = assignments.map((assignment) => [assignment.id, assignment.orderId, assignment.customerName, assignment.estate, assignment.assignedRider, assignment.status, assignment.proofUrl ?? '', assignment.updatedAt, assignment.notes]);
+  return formatCsv([header, ...rows]);
+}
+
 export function generateWhatsAppMessage(data: {
   name: string;
   phone: string;
@@ -93,6 +134,10 @@ export function generateWhatsAppMessage(data: {
   serviceFee: number;
   deliveryFee: number;
   additionalCharges: number;
+  businessName?: string;
+  businessAccountNumber?: string;
+  orderId?: string;
+  baseUrl?: string;
 }) {
   const itemLines = data.items.map((item, index) => {
     const total = item.quantity * item.price;
@@ -102,7 +147,19 @@ export function generateWhatsAppMessage(data: {
   const subtotal = data.items.reduce((acc, item) => acc + item.quantity * item.price, 0);
   const grandTotal = subtotal + data.serviceFee + data.deliveryFee + data.additionalCharges;
 
-  return `*KiaKia Foods Order*
+  const businessName = data.businessName ?? 'KiaKia Foods';
+  const accountSection = data.businessAccountNumber ? `*Account:* ${data.businessAccountNumber}\n` : '';
+  
+  // Generate confirmation link if orderId and baseUrl are provided
+  const baseUrlForLink = data.baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://kiakiafoods.com');
+  const confirmationLink = data.orderId 
+    ? `${baseUrlForLink}/confirm-order?orderId=${data.orderId}&customerName=${encodeURIComponent(data.name)}`
+    : '';
+  const confirmationSection = confirmationLink 
+    ? `*👉 CONFIRM YOUR ORDER HERE:*\n${confirmationLink}\n\n` 
+    : '';
+
+  return `*${businessName} Order*
 
 *Customer:* ${data.name}
 *Phone:* ${data.phone}
@@ -117,6 +174,8 @@ ${itemLines.join('\n')}
 *Delivery Fee:* ₦${data.deliveryFee.toLocaleString()}
 *Additional Charges:* ₦${data.additionalCharges.toLocaleString()}
 *Grand Total:* ₦${grandTotal.toLocaleString()}
-
-Please confirm the order and send it to KiaKia Foods. Thank you.`;
+${accountSection}
+${confirmationSection}
+Please confirm this order by replying on WhatsApp so ${businessName} can update your status.
+Thank you.`;
 }

@@ -1,11 +1,11 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Button } from '@/components/ui/Button';
 import { useOMSStore } from '@/lib/StoreContext';
-import { formatCurrency, generateWhatsAppMessage } from '@/lib/utils';
+import { formatCurrency, generateWhatsAppMessage, loadAdminSettings } from '@/lib/utils';
 import { orderStatuses } from '@/lib/mockData';
 
 export default function AdminOrderDetailPage() {
@@ -18,6 +18,21 @@ export default function AdminOrderDetailPage() {
   const [notes, setNotes] = useState(order?.notes ?? '');
   const [assignedRider, setAssignedRider] = useState(order?.assignedRider ?? '');
   const [status, setStatus] = useState<OrderStatus>(order?.status ?? 'New');
+  const [settings, setSettings] = useState({
+    businessName: 'KiaKia Foods',
+    whatsappNumber: '+2348000000000',
+    businessAccountNumber: '1234567890',
+    serviceFee: 1200,
+    deliveryFee: 1500
+  });
+  const [showMessagePreview, setShowMessagePreview] = useState(false);
+
+  useEffect(() => {
+    const savedSettings = loadAdminSettings();
+    if (savedSettings) {
+      setSettings(savedSettings);
+    }
+  }, []);
 
   const whatsappMessage = useMemo(() => {
     if (!order) return '';
@@ -29,9 +44,14 @@ export default function AdminOrderDetailPage() {
       items: order.items,
       serviceFee: order.serviceFee,
       deliveryFee: order.deliveryFee,
-      additionalCharges: order.additionalCharges
+      additionalCharges: order.additionalCharges,
+      businessName: settings.businessName,
+      businessAccountNumber: settings.businessAccountNumber,
+      orderId: order.id
     });
-  }, [order]);
+  }, [order, settings]);
+
+  const businessWhatsAppUrl = `https://wa.me/${order?.whatsapp.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(whatsappMessage)}`;
 
   if (!order) {
     return (
@@ -66,12 +86,40 @@ export default function AdminOrderDetailPage() {
             <Button variant="secondary" onClick={() => handleUpdate({ status: 'Delivered' })}>
               Mark delivered
             </Button>
-            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-2xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700">
-              Send WhatsApp
+            <Button variant="secondary" onClick={() => handleUpdate({ status: 'Confirmed' })}>
+              Mark confirmed
+            </Button>
+            <button
+              onClick={() => setShowMessagePreview(!showMessagePreview)}
+              className="inline-flex items-center justify-center rounded-2xl border border-brand-600 px-6 py-3 text-sm font-semibold text-brand-600 hover:bg-brand-50"
+            >
+              👁️ Preview Message
+            </button>
+            <a href={businessWhatsAppUrl} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-2xl bg-green-600 px-6 py-3 text-sm font-semibold text-white hover:bg-green-700">
+              💬 Send to Customer
             </a>
           </div>
         </div>
       </div>
+
+      {/* Message Preview Section */}
+      {showMessagePreview && (
+        <div className="rounded-3xl bg-green-50 border-2 border-green-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <p className="text-sm uppercase tracking-[0.24em] text-green-600 font-bold">📱 WhatsApp Message Preview</p>
+            <button
+              onClick={() => setShowMessagePreview(false)}
+              className="text-xl text-slate-400 hover:text-slate-600"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="rounded-2xl bg-white p-4 border border-green-200 text-sm text-slate-800 font-mono whitespace-pre-wrap break-words max-h-96 overflow-y-auto">
+            {whatsappMessage}
+          </div>
+          <p className="text-xs text-green-600 mt-3">✓ Account number will be visible to the customer</p>
+        </div>
+      )}
 
       <div className="grid gap-6 xl:grid-cols-[0.7fr_0.3fr]">
         <section className="rounded-[2rem] bg-white p-8 shadow-sm">
@@ -80,7 +128,14 @@ export default function AdminOrderDetailPage() {
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Contact</p>
               <p className="mt-3 text-slate-900">{order.customerName}</p>
               <p className="text-sm text-slate-600">{order.phone}</p>
-              <p className="text-sm text-slate-600">{order.whatsapp}</p>
+              <a
+                href={`https://wa.me/${order.whatsapp.replace(/[^0-9]/g, '')}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-green-600 hover:text-green-700 font-semibold mt-2 inline-block"
+              >
+                💬 {order.whatsapp}
+              </a>
             </div>
             <div className="rounded-3xl border border-slate-200 p-6">
               <p className="text-sm uppercase tracking-[0.24em] text-slate-500">Delivery</p>
@@ -89,6 +144,21 @@ export default function AdminOrderDetailPage() {
               <p className="text-sm text-slate-600">Batch: {order.batchId || 'None'}</p>
             </div>
           </div>
+
+          {/* Account Number Display */}
+          {settings.businessAccountNumber && (
+            <div className="mt-6 rounded-3xl bg-blue-50 border-2 border-blue-200 p-6">
+              <p className="text-sm uppercase tracking-[0.24em] text-blue-600 font-bold">🏦 Account Info Sent to Customer</p>
+              <div className="mt-3 flex items-center gap-3">
+                <div className="text-3xl">📱</div>
+                <div>
+                  <p className="text-xs text-slate-600">Account Number:</p>
+                  <p className="text-2xl font-bold text-slate-950 font-mono">{settings.businessAccountNumber}</p>
+                </div>
+              </div>
+              <p className="text-xs text-blue-600 mt-3">✓ This will appear in the WhatsApp message sent to the customer for payment reference</p>
+            </div>
+          )}
 
           <div className="mt-6 space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-6">
             <div className="grid gap-4 sm:grid-cols-3">
@@ -132,7 +202,7 @@ export default function AdminOrderDetailPage() {
         <aside className="space-y-6 rounded-[2rem] bg-white p-8 shadow-sm">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-brand-600">Order controls</p>
-            <h2 className="mt-2 text-2xl font-semibold text-slate-950">Update order workflow</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-slate-950">Update workflow</h2>
           </div>
 
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-6">
@@ -169,8 +239,8 @@ export default function AdminOrderDetailPage() {
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               onBlur={() => handleUpdate({ notes })}
-              rows={6}
-              className="w-full rounded-3xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
+              rows={5}
+              className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100"
               placeholder="Update sourcing, delivery, or customer notes"
             />
           </div>
@@ -178,11 +248,19 @@ export default function AdminOrderDetailPage() {
           <div className="rounded-3xl border border-slate-200 bg-white p-6">
             <p className="text-sm uppercase tracking-[0.24em] text-brand-600">Quick actions</p>
             <div className="mt-4 grid gap-3">
-              <Button variant="secondary" onClick={() => handleUpdate({ status: 'Purchased' })}>
-                Mark purchased
+              <Button 
+                variant="secondary" 
+                onClick={() => handleUpdate({ status: 'Purchased' })}
+                className="w-full"
+              >
+                ✓ Mark Purchased
               </Button>
-              <Button variant="secondary" onClick={() => handleUpdate({ status: 'At Dispatch Point' })}>
-                Send to dispatch
+              <Button 
+                variant="secondary" 
+                onClick={() => handleUpdate({ status: 'At Dispatch Point' })}
+                className="w-full"
+              >
+                🚚 Send to Dispatch
               </Button>
             </div>
           </div>

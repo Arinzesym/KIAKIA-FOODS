@@ -15,6 +15,14 @@ type CreateUserBody = {
 
 const allowedCreateRoles = new Set(['cofounder', 'runner', 'rider']);
 
+function formatDbError(message: string) {
+  if (/invalid path specified in request url/i.test(message) || /failed to parse url/i.test(message)) {
+    return 'Supabase URL is invalid. Set NEXT_PUBLIC_SUPABASE_URL to https://<project-ref>.supabase.co and redeploy.';
+  }
+
+  return message;
+}
+
 function sanitizeUser(user: Record<string, unknown>) {
   return {
     id: String(user.id ?? ''),
@@ -45,7 +53,7 @@ export async function GET() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatDbError(error.message) }, { status: 500 });
   }
 
   return NextResponse.json({ users: (data ?? []).map(sanitizeUser) });
@@ -83,7 +91,7 @@ export async function POST(request: Request) {
       .eq('role', 'cofounder');
 
     if (countError) {
-      return NextResponse.json({ error: countError.message }, { status: 500 });
+      return NextResponse.json({ error: formatDbError(countError.message) }, { status: 500 });
     }
 
     if ((count ?? 0) >= 2) {
@@ -107,7 +115,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: formatDbError(error.message) }, { status: 500 });
   }
 
   return NextResponse.json({ user: { id, name, email, phone, role } }, { status: 201 });

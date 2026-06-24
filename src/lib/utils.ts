@@ -148,16 +148,9 @@ export function generateWhatsAppMessage(data: {
   const grandTotal = subtotal + data.serviceFee + data.deliveryFee + data.additionalCharges;
 
   const businessName = data.businessName ?? 'KiaKia Foods';
-  const accountSection = data.businessAccountNumber ? `*Account:* ${data.businessAccountNumber}\n` : '';
-  
-  // Generate confirmation link if orderId and baseUrl are provided
-  const baseUrlForLink = data.baseUrl || (typeof window !== 'undefined' ? window.location.origin : 'https://kiakiafoods.com');
-  const confirmationLink = data.orderId 
-    ? `${baseUrlForLink}/confirm-order?orderId=${data.orderId}&customerName=${encodeURIComponent(data.name)}`
-    : '';
-  const confirmationSection = confirmationLink 
-    ? `*👉 CONFIRM YOUR ORDER HERE:*\n${confirmationLink}\n\n` 
-    : '';
+  const accountSection = data.businessAccountNumber
+    ? `*Payment Account Number:* ${data.businessAccountNumber}`
+    : '*Payment Account Number:* Please contact us for account details.';
 
   return `*${businessName} Order*
 
@@ -175,8 +168,9 @@ ${itemLines.join('\n')}
 *Additional Charges:* ₦${data.additionalCharges.toLocaleString()}
 *Grand Total:* ₦${grandTotal.toLocaleString()}
 ${accountSection}
-${confirmationSection}
-Please confirm this order by replying on WhatsApp so ${businessName} can update your status.
+
+Please send payment to the account number above.
+Once ${businessName} receives your payment, your order will be confirmed.
 Thank you.`;
 }
 

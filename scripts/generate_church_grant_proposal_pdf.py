@@ -5,7 +5,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.pdfgen.canvas import Canvas
-from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.platypus import Image, PageBreak, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
 OUTPUT_FILE = "CHURCH_GRANT_BUSINESS_PROPOSAL_KIAKIA_FOODS.pdf"
@@ -89,14 +89,43 @@ def build_story():
         leading=12,
         textColor=THEME["muted"],
     )
+    cover_title_style = ParagraphStyle(
+        "CoverTitle",
+        parent=styles["Title"],
+        fontName="Helvetica-Bold",
+        fontSize=24,
+        leading=29,
+        alignment=1,
+        textColor=THEME["brand_green"],
+        spaceAfter=10,
+    )
+    cover_subtitle_style = ParagraphStyle(
+        "CoverSubtitle",
+        parent=styles["Normal"],
+        fontName="Helvetica",
+        fontSize=12,
+        leading=16,
+        alignment=1,
+        textColor=THEME["muted"],
+        spaceAfter=5,
+    )
 
     ask_amount = 2_000_000
 
     story = []
     logo_path = next((path for path in LOGO_CANDIDATES if path.exists()), None)
+
+    # Cover page for strong first-impression branding.
+    story.append(Spacer(1, 0.9 * cm))
     if logo_path:
-        story.append(Image(str(logo_path), width=6.2 * cm, height=6.2 * cm, hAlign="CENTER"))
-        story.append(Spacer(1, 0.35 * cm))
+        story.append(Image(str(logo_path), width=9.2 * cm, height=9.2 * cm, hAlign="CENTER"))
+        story.append(Spacer(1, 0.65 * cm))
+    story.append(Paragraph("KiaKia Foods", cover_title_style))
+    story.append(Paragraph("Business Proposal for Church Grant Support", cover_subtitle_style))
+    story.append(Paragraph("Submitted To: CYON, Holy Family Catholic Church, Life Camp, Abuja", cover_subtitle_style))
+    story.append(Paragraph(f"Date: {date.today().strftime('%d %B %Y')}", cover_subtitle_style))
+    story.append(Spacer(1, 1.1 * cm))
+    story.append(PageBreak())
 
     story.append(Paragraph("BUSINESS PROPOSAL FOR CHURCH GRANT SUPPORT", title_style))
     story.append(Paragraph("KiaKia Foods", business_name_style))

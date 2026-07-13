@@ -140,16 +140,6 @@ def build_story():
     story.append(snapshot_table)
     story.append(Spacer(1, 0.25 * cm))
 
-    story.append(Paragraph("Recipient Context (Research Snapshot)", h_style))
-    story.append(
-        Paragraph(
-            "This proposal is specifically prepared for CYON at Holy Family Catholic Church, Life Camp, Abuja. "
-            "Public information indicates the parish has an active youth body (CYON), a parish website presence, and regular community programs. "
-            "The requested support is designed to align with youth empowerment, service outreach, and accountable stewardship.",
-            p_style,
-        )
-    )
-
     story.append(Paragraph("1. Executive Summary", h_style))
     story.append(
         Paragraph(

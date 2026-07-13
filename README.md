@@ -21,6 +21,18 @@ A production-ready SaaS-style web application scaffold for KiaKia Foods built wi
 - `src/components`: Reusable UI components and forms
 - `src/lib`: Client helpers and data models
 
+## Release Notes (July 2026)
+
+### New Admin APIs
+- `GET/PUT /api/admin/business-settings`: Server-backed business configuration (fees, market windows, runner bonus, currency) with compatibility-safe merge behavior.
+- `GET/POST/PATCH/DELETE /api/admin/catalog`: Full admin catalog CRUD for weekly groceries and specialty items.
+
+### Operational Checks
+- `npm run lint`: Lint validation for code quality.
+- `npm run test`: Unit tests for margin engine, OMS compatibility helpers, and dispatch fallback mapping.
+- `npm run build`: Production build and type validation.
+- `npm run db:smoke`: Database schema smoke-check for required OMS tables/columns (requires `SUPABASE_SERVICE_ROLE_KEY` and either `SUPABASE_URL` or `NEXT_PUBLIC_SUPABASE_URL`).
+
 ## Notes
 - Payment is intentionally disabled. Orders are generated as WhatsApp messages.
 - Ownership remains with KiaKia Foods; no proprietary platform lock-in.

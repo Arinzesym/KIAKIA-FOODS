@@ -10,7 +10,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "tsx --test src/lib/__tests__/*.test.ts",
+    "db:smoke": "node scripts/migration-smoke-check.mjs"
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",
@@ -36,6 +38,7 @@
     "autoprefixer": "^10.4.19",
     "eslint": "^8.57.0",
     "eslint-config-next": "^14.2.5",
-    "postcss": "^8.4.42"
+    "postcss": "^8.4.42",
+    "tsx": "^4.19.2"
   }
 }

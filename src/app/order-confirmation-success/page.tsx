@@ -24,7 +24,7 @@ function OrderSuccessContent() {
           </h1>
           
           <p className="text-lg text-slate-600 mb-8">
-            Thank you for confirming your order. We've received it and will start preparing it right away.
+            Thank you for confirming your order. We&apos;ve received it and will start preparing it right away.
           </p>
 
           {order && (
@@ -90,7 +90,7 @@ function OrderSuccessContent() {
           {/* Info Box */}
           <div className="bg-yellow-50 border border-yellow-200 rounded-2xl p-4 mb-8">
             <p className="text-sm text-yellow-900">
-              <strong>💬 Stay Connected:</strong> We'll send you WhatsApp updates as your order progresses through each stage.
+              <strong>💬 Stay Connected:</strong> We&apos;ll send you WhatsApp updates as your order progresses through each stage.
             </p>
           </div>
 

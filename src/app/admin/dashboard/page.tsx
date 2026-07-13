@@ -1,6 +1,17 @@
 'use client';
 
-import { AdminStatsGrid, EstatePerformance, LeadsPanel, RevenueChart } from '@/components/admin';
+import dynamic from 'next/dynamic';
+
+const AdminStatsGrid = dynamic(() => import('@/components/admin').then((mod) => mod.AdminStatsGrid));
+const RevenueChart = dynamic(() => import('@/components/admin').then((mod) => mod.RevenueChart), {
+  ssr: false,
+  loading: () => <div className="h-72 animate-pulse rounded-3xl bg-white" />
+});
+const EstatePerformance = dynamic(() => import('@/components/admin').then((mod) => mod.EstatePerformance), {
+  ssr: false,
+  loading: () => <div className="h-72 animate-pulse rounded-3xl bg-white" />
+});
+const LeadsPanel = dynamic(() => import('@/components/admin').then((mod) => mod.LeadsPanel));
 
 export default function AdminDashboardPage() {
   return (

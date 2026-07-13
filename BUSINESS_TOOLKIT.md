@@ -56,6 +56,7 @@ Maximize profit by:
 - Central market sourcing and dispatch
 - Accurate individual household fulfillment
 - Simple repeat-order and order history support
+- Mobile-first runner, rider, customer, and admin workflows
 
 ## 8. Why this works
 
@@ -84,3 +85,31 @@ Visit the toolkit page in the app at:
 `/toolkit`
 
 This is your practical B2C delivery model and operations playbook.
+
+## 10. Mobile-first execution standard
+
+The OMS is optimized for phones first, then tablets and desktop.
+
+- Runner and rider actions are one-handed and touch-safe.
+- Order creation and dispatch updates are streamlined for fast field use.
+- Core breakpoints to validate: 320, 375, 390, 414, 768, 1024, and desktop widths.
+- PWA installation is enabled for faster repeat access.
+
+## 11. Cloud-backed controls
+
+Admin settings and catalog now support server-backed persistence, with local fallback safety:
+
+- Settings API: `GET/PUT /api/admin/business-settings`
+- Catalog API: `GET/POST/PATCH/DELETE /api/admin/catalog`
+- Pages consume server data first and gracefully continue when cloud sync is unavailable.
+
+## 12. Operational hardening checklist
+
+Before go-live or major releases, run:
+
+1. `npm run lint`
+2. `npm run test`
+3. `npm run build`
+4. `npm run db:smoke`
+
+`db:smoke` validates critical migration expectations for required OMS tables and columns.

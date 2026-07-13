@@ -153,7 +153,7 @@ function OrderConfirmationContent() {
 
           {isConfirmed && (
             <div className="mb-6 rounded-2xl bg-green-50 p-4 text-green-700 text-sm font-semibold">
-              ✓ Your order has been confirmed! We'll start sourcing your items right away.
+              ✓ Your order has been confirmed! We&apos;ll start sourcing your items right away.
             </div>
           )}
 
@@ -187,10 +187,10 @@ function OrderConfirmationContent() {
           <p className="text-sm font-semibold text-blue-900 mb-3">📝 What happens next?</p>
           <ul className="space-y-2 text-sm text-blue-800">
             <li>✓ Your order is confirmed and sent to our team</li>
-            <li>✓ We'll source all items from the market</li>
+            <li>✓ We&apos;ll source all items from the market</li>
             <li>✓ Your order will be prepared and packed</li>
             <li>✓ A rider will deliver to your address</li>
-            <li>✓ You'll receive status updates via WhatsApp</li>
+            <li>✓ You&apos;ll receive status updates via WhatsApp</li>
           </ul>
         </div>
       </div>

@@ -16,10 +16,13 @@ import {
 } from 'recharts';
 import { Button } from '@/components/ui/Button';
 import { useOMSStore } from '@/lib/StoreContext';
-import { formatCurrency, buildWhatsAppLink, generateWhatsAppMessage } from '@/lib/utils';
+import { formatCurrency } from '@/lib/utils';
 import { dispatchStatuses, orderStatusMap, orderStatuses, paymentStatuses } from '@/lib/mockData';
 import { isAdminRole, normalizeRole, type AuthRole } from '@/lib/access';
-import type { DispatchStatus, EstateBatch, OrderRecord } from '@/lib/types';
+import type { DispatchStatus, EstateBatch, OrderRecord, RunnerTask } from '@/lib/types';
+import { createOrderWhatsAppLink } from '@/lib/whatsappService';
+import { loadBusinessSettings } from '@/lib/businessSettings';
+import { calculateShoppingBudgetMetrics } from '@/lib/marginEngine';
 
 function useAuthRole() {
   const [role, setRole] = useState<AuthRole>('');
@@ -78,13 +81,53 @@ function exportCsv(filename: string, rows: string[][]) {
   URL.revokeObjectURL(url);
 }
 
+function normalizePhone(phone: string) {
+  return phone.replace(/[^\d]/g, '');
+}
+
+function mapLink(address: string, estate: string) {
+  const query = encodeURIComponent(`${address}, ${estate}`.trim());
+  return `https://www.google.com/maps/search/?api=1&query=${query}`;
+}
+
 export function AdminStatsGrid() {
-  const { orders, customers, estateBatches, dispatches, notifications } = useOMSStore();
+  const { orders, customers, estateBatches, dispatches, notifications, runnerTasks } = useOMSStore();
+
+  const todayDate = new Date().toDateString();
+  const todaysOrders = orders.filter((order) => new Date(order.createdAt).toDateString() === todayDate).length;
+  const weekdayOrders = orders.filter((order) => order.marketDay === 'Weekday').length;
+  const weekendOrders = orders.filter((order) => order.marketDay === 'Weekend').length;
+  const customDeliveries = orders.filter((order) => order.customDelivery).length;
 
   const revenue = orders.reduce((sum, order) => sum + order.grandTotal, 0);
   const failed = orders.filter((order) => order.status === 'Failed').length;
+  const pendingAssignments = orders.filter((order) => !order.assignedRunner).length;
+  const shoppingMargin = orders.reduce((sum, order) => sum + Number(order.shoppingMargin ?? 0), 0);
+  const deliveryMargins = orders.reduce((sum, order) => sum + Number(order.deliveryMargin ?? 0), 0);
+  const estatesCount = new Set(orders.map((order) => order.estate).filter(Boolean)).size;
+  const specialtySales = orders
+    .filter((order) => order.productLine === 'Specialty Items')
+    .reduce((sum, order) => sum + order.grandTotal, 0);
+  const weeklyWindowStart = new Date();
+  weeklyWindowStart.setDate(weeklyWindowStart.getDate() - 7);
+  const weeklyOrders = orders.filter((order) => new Date(order.createdAt) >= weeklyWindowStart);
+  const weeklyRevenue = weeklyOrders.reduce((sum, order) => sum + order.grandTotal, 0);
+  const runnerBonusPaid = weeklyOrders.reduce((sum, order) => sum + Number(order.runnerIncentive ?? 0), 0);
+  const dispatchCosts = runnerTasks.reduce((sum, task) => sum + Number(task.purchaseCost ?? 0), 0);
+  const weeklyProfit = weeklyRevenue - runnerBonusPaid - dispatchCosts;
 
   const stats = [
+    { label: "Today's Orders", value: todaysOrders.toLocaleString() },
+    { label: 'Orders by Market Day', value: `${weekdayOrders} / ${weekendOrders}` },
+    { label: 'Orders by Estate', value: estatesCount.toLocaleString() },
+    { label: 'Runner Performance', value: `${runnerTasks.length} active` },
+    { label: 'Pending Assignments', value: pendingAssignments.toLocaleString() },
+    { label: 'Shopping Margins', value: formatCurrency(shoppingMargin) },
+    { label: 'Delivery Margins', value: formatCurrency(deliveryMargins) },
+    { label: 'Custom Deliveries', value: customDeliveries.toLocaleString() },
+    { label: 'Weekly Revenue', value: formatCurrency(weeklyRevenue) },
+    { label: 'Weekly Profit', value: formatCurrency(weeklyProfit) },
+    { label: 'Specialty Item Sales', value: formatCurrency(specialtySales) },
     { label: 'Orders', value: orders.length.toLocaleString() },
     { label: 'Dispatch Queue', value: dispatches.length.toLocaleString() },
     { label: 'Customers', value: customers.length.toLocaleString() },
@@ -146,9 +189,18 @@ export function AdminOrderTable() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [dateFilter, setDateFilter] = useState('All');
+  const [marketDayFilter, setMarketDayFilter] = useState('All');
+  const [estateFilter, setEstateFilter] = useState('All');
+  const [runnerFilter, setRunnerFilter] = useState('All');
   const [message, setMessage] = useState('');
   const [messageType, setMessageType] = useState<'success' | 'error'>('success');
   const role = useAuthRole();
+
+  const estates = useMemo(() => ['All', ...Array.from(new Set(orders.map((order) => order.estate).filter(Boolean))).sort()], [orders]);
+  const runners = useMemo(
+    () => ['All', ...Array.from(new Set(orders.map((order) => order.assignedRunner || order.assignedRider).filter(Boolean))).sort()],
+    [orders]
+  );
 
   const filteredOrders = useMemo(
     () => orders.filter((order) => {
@@ -165,9 +217,13 @@ export function AdminOrderTable() {
       const matchesStatus = statusFilter === 'All' || order.status === statusFilter;
       const dateBucket = getDateBucket(order.createdAt);
       const matchesDate = dateFilter === 'All' || dateBucket === dateFilter;
-      return matchesSearch && matchesStatus && matchesDate;
+      const matchesMarketDay = marketDayFilter === 'All' || (order.marketDay ?? 'Weekday') === marketDayFilter;
+      const matchesEstate = estateFilter === 'All' || order.estate === estateFilter;
+      const currentRunner = order.assignedRunner || order.assignedRider;
+      const matchesRunner = runnerFilter === 'All' || currentRunner === runnerFilter;
+      return matchesSearch && matchesStatus && matchesDate && matchesMarketDay && matchesEstate && matchesRunner;
     }),
-    [orders, search, statusFilter, dateFilter]
+    [orders, search, statusFilter, dateFilter, marketDayFilter, estateFilter, runnerFilter]
   );
 
   const showFlash = (text: string, type: 'success' | 'error') => {
@@ -198,9 +254,10 @@ export function AdminOrderTable() {
   };
 
   const handleWhatsApp = (order: OrderRecord) => {
-    const whatsappMessage = generateWhatsAppMessage({
+    const settings = loadBusinessSettings();
+    const result = createOrderWhatsAppLink({
       name: order.customerName,
-      phone: order.phone,
+      phone: order.whatsapp || order.phone,
       estate: order.estate,
       address: order.address,
       items: order.items,
@@ -208,9 +265,7 @@ export function AdminOrderTable() {
       deliveryFee: order.deliveryFee,
       additionalCharges: order.additionalCharges,
       orderId: order.orderNumber
-    });
-
-    const result = buildWhatsAppLink(order.whatsapp || order.phone, whatsappMessage);
+    }, settings);
     if (!result.ok || !result.url) {
       showFlash(result.error ?? 'Invalid WhatsApp number.', 'error');
       return;
@@ -249,7 +304,7 @@ export function AdminOrderTable() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-3 lg:grid-cols-4">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <input
           type="text"
           value={search}
@@ -276,6 +331,33 @@ export function AdminOrderTable() {
             <option key={item} value={item}>{item}</option>
           ))}
         </select>
+        <select
+          value={marketDayFilter}
+          onChange={(event) => setMarketDayFilter(event.target.value)}
+          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm"
+        >
+          {['All', 'Weekday', 'Weekend'].map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
+        </select>
+        <select
+          value={estateFilter}
+          onChange={(event) => setEstateFilter(event.target.value)}
+          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm"
+        >
+          {estates.map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
+        </select>
+        <select
+          value={runnerFilter}
+          onChange={(event) => setRunnerFilter(event.target.value)}
+          className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm"
+        >
+          {runners.map((item) => (
+            <option key={item} value={item}>{item}</option>
+          ))}
+        </select>
       </div>
 
       {message ? (
@@ -293,7 +375,9 @@ export function AdminOrderTable() {
               <th className="px-4 py-3">Estate</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Payment</th>
+              <th className="px-4 py-3">Market Day</th>
               <th className="px-4 py-3">Rider</th>
+              <th className="px-4 py-3">Shopping Margin</th>
               <th className="px-4 py-3">Total</th>
               <th className="px-4 py-3">Actions</th>
             </tr>
@@ -319,7 +403,9 @@ export function AdminOrderTable() {
                     ))}
                   </select>
                 </td>
+                <td className="px-4 py-3 text-slate-600">{order.marketDay ?? 'Weekday'}</td>
                 <td className="px-4 py-3 text-slate-600">{order.assignedRider || 'Unassigned'}</td>
+                <td className="px-4 py-3 text-slate-900">{formatCurrency(Number(order.shoppingMargin ?? 0))}</td>
                 <td className="px-4 py-3 text-slate-900">{formatCurrency(order.grandTotal)}</td>
                 <td className="px-4 py-3">
                   <div className="flex flex-wrap gap-2">
@@ -333,7 +419,7 @@ export function AdminOrderTable() {
             ))}
             {filteredOrders.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-4 py-8 text-center text-slate-500">No orders found for this filter.</td>
+                <td colSpan={10} className="px-4 py-8 text-center text-slate-500">No orders found for this filter.</td>
               </tr>
             ) : null}
           </tbody>
@@ -355,6 +441,7 @@ export function AdminOrderTable() {
                 <StatusBadge status={order.status} />
               </div>
               <p className="mt-3 text-sm text-slate-600">{order.estate} • {formatCurrency(order.grandTotal)}</p>
+              <p className="mt-1 text-xs text-slate-500">{order.marketDay ?? 'Weekday'} • Margin {formatCurrency(Number(order.shoppingMargin ?? 0))}</p>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => handleWhatsApp(order)} className="min-h-11 rounded-xl bg-green-50 px-2 text-xs font-semibold text-green-700">Message</button>
                 <button type="button" onClick={() => handleSendDispatch(order)} className="min-h-11 rounded-xl bg-brand-50 px-2 text-xs font-semibold text-brand-700">Dispatch</button>
@@ -368,10 +455,86 @@ export function AdminOrderTable() {
 }
 
 export function DispatchBoard() {
-  const { dispatches, updateDispatchStatus } = useOMSStore();
+  const { dispatches, orders, runnerTasks, addRunnerTask, updateDispatchStatus, createNotification } = useOMSStore();
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [runnerInputs, setRunnerInputs] = useState<Record<string, string>>({});
+  const [runnerNotes, setRunnerNotes] = useState<Record<string, string>>({});
+  const [notice, setNotice] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
 
   const columns: DispatchStatus[] = ['Unassigned', 'Assigned', 'Picked Up', 'In Transit', 'Delivered', 'Completed', 'Failed'];
+
+  const showNotice = (text: string, type: 'success' | 'error') => {
+    setNotice({ text, type });
+    window.setTimeout(() => setNotice(null), 3200);
+  };
+
+  const handleSendToRunner = (dispatchId: string) => {
+    const dispatch = dispatches.find((item) => item.id === dispatchId);
+    if (!dispatch) {
+      showNotice('Dispatch record not found.', 'error');
+      return;
+    }
+
+    const order = orders.find((item) => item.id === dispatch.orderId);
+    if (!order) {
+      showNotice('Order for this dispatch could not be found.', 'error');
+      return;
+    }
+
+    const assignedRunner = (runnerInputs[dispatchId] ?? dispatch.assignedRider ?? '').trim();
+    if (!assignedRunner) {
+      showNotice('Enter a runner name before sending.', 'error');
+      return;
+    }
+
+    const duplicateTask = runnerTasks.some((task) => {
+      if (task.orderId !== dispatch.orderId) {
+        return false;
+      }
+
+      const sameRunner = task.assignedTo.trim().toLowerCase() === assignedRunner.toLowerCase();
+      const stillOpen = task.status !== 'Completed' && task.status !== 'Cancelled';
+      return sameRunner && stillOpen;
+    });
+
+    if (duplicateTask) {
+      showNotice(`An active runner task already exists for ${assignedRunner}.`, 'error');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const settings = loadBusinessSettings();
+    const budgetMetrics = calculateShoppingBudgetMetrics(order.shoppingBudget ?? order.purchaseCost, order.actualSpend ?? order.purchaseCost, settings.runnerBonusPercentage);
+
+    const task: RunnerTask = {
+      id: crypto.randomUUID(),
+      orderId: dispatch.orderId,
+      orderNumber: dispatch.orderNumber,
+      task: `Source items for ${dispatch.orderNumber} (${order.items.length} items)`,
+      status: 'Pending',
+      assignedTo: assignedRunner,
+      marketDay: order.marketDay,
+      productLine: order.productLine,
+      estate: order.estate,
+      shoppingList: order.items.map((item) => `${item.name} x ${item.quantity}`),
+      allocatedBudget: budgetMetrics.allocatedBudget,
+      actualSpend: budgetMetrics.actualSpend,
+      unavailableItems: [],
+      suggestedSubstitutions: [],
+      receiptImages: [],
+      purchaseCost: order.purchaseCost ?? 0,
+      notes: (runnerNotes[dispatchId] ?? '').trim(),
+      updatedAt: now
+    };
+
+    addRunnerTask(task);
+    updateDispatchStatus(dispatchId, 'Assigned', { assignedRider: assignedRunner });
+    createNotification('Rider Assignment', 'Runner task assigned', `${dispatch.orderNumber} assigned to runner ${assignedRunner}.`, { orderId: dispatch.orderId });
+
+    setRunnerInputs((current) => ({ ...current, [dispatchId]: assignedRunner }));
+    setRunnerNotes((current) => ({ ...current, [dispatchId]: '' }));
+    showNotice(`${dispatch.orderNumber} sent to ${assignedRunner}.`, 'success');
+  };
 
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
@@ -381,6 +544,11 @@ export function DispatchBoard() {
           <h2 className="mt-2 text-2xl font-semibold text-slate-950">Dispatch board</h2>
         </div>
       </div>
+      {notice ? (
+        <div className={`mt-4 rounded-2xl px-4 py-3 text-sm font-semibold ${notice.type === 'success' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+          {notice.text}
+        </div>
+      ) : null}
       <div className="mt-6 grid gap-4 lg:grid-cols-4 2xl:grid-cols-7">
         {columns.map((column) => {
           const items = dispatches.filter((dispatch) => dispatch.status === column);
@@ -412,7 +580,91 @@ export function DispatchBoard() {
                     <p className="text-xs uppercase tracking-[0.2em] text-brand-600">{dispatch.orderNumber}</p>
                     <p className="mt-1 text-sm font-semibold text-slate-900">{dispatch.customerName}</p>
                     <p className="text-xs text-slate-600">{dispatch.estate}</p>
+                    <p className="mt-1 text-xs text-slate-500">Status: {dispatch.status}</p>
+                    <p className="text-xs text-slate-500">{orders.find((order) => order.id === dispatch.orderId)?.address || 'Address unavailable'}</p>
+                    <p className="text-xs text-slate-500">{orders.find((order) => order.id === dispatch.orderId)?.phone || 'No phone provided'}</p>
+                    <p className="mt-1 text-xs text-slate-500">{orders.find((order) => order.id === dispatch.orderId)?.notes || 'No delivery notes'}</p>
                     <p className="mt-2 text-xs text-slate-500">{dispatch.assignedRider || 'Unassigned'}</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <a
+                        href={`tel:${normalizePhone(orders.find((order) => order.id === dispatch.orderId)?.phone || '')}`}
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 px-2 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Call Customer
+                      </a>
+                      <a
+                        href={`https://wa.me/${normalizePhone(orders.find((order) => order.id === dispatch.orderId)?.whatsapp || orders.find((order) => order.id === dispatch.orderId)?.phone || '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl bg-green-600 px-2 text-xs font-semibold text-white hover:bg-green-700"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        WhatsApp
+                      </a>
+                      <a
+                        href={mapLink(orders.find((order) => order.id === dispatch.orderId)?.address || '', orders.find((order) => order.id === dispatch.orderId)?.estate || '')}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-10 items-center justify-center rounded-xl bg-blue-600 px-2 text-xs font-semibold text-white hover:bg-blue-700"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Open Navigation
+                      </a>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          updateDispatchStatus(dispatch.id, 'Delivered');
+                        }}
+                        className="min-h-10 rounded-xl bg-brand-600 px-2 text-xs font-semibold text-white hover:bg-brand-700"
+                      >
+                        Mark Delivered
+                      </button>
+                      <button
+                        type="button"
+                        disabled
+                        className="col-span-2 min-h-10 rounded-xl border border-dashed border-slate-300 px-2 text-xs font-semibold text-slate-500"
+                        title="Future-ready proof upload endpoint"
+                      >
+                        Upload Delivery Proof
+                      </button>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      <input
+                        type="text"
+                        value={runnerInputs[dispatch.id] ?? dispatch.assignedRider ?? ''}
+                        onChange={(event) => setRunnerInputs((current) => ({ ...current, [dispatch.id]: event.target.value }))}
+                        onClick={(event) => event.stopPropagation()}
+                        placeholder="Runner name"
+                        className="min-h-10 w-full rounded-xl border border-slate-200 px-3 text-xs"
+                      />
+                      <input
+                        type="text"
+                        value={runnerNotes[dispatch.id] ?? ''}
+                        onChange={(event) => setRunnerNotes((current) => ({ ...current, [dispatch.id]: event.target.value }))}
+                        onClick={(event) => event.stopPropagation()}
+                        placeholder="Task note (optional)"
+                        className="min-h-10 w-full rounded-xl border border-slate-200 px-3 text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          handleSendToRunner(dispatch.id);
+                        }}
+                        className="min-h-10 w-full rounded-xl bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+                      >
+                        Send to Runner
+                      </button>
+                      <Link
+                        href={`/admin/orders/${dispatch.orderId}`}
+                        className="inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        Open Order
+                      </Link>
+                    </div>
                   </article>
                 ))}
                 {items.length === 0 ? <div className="rounded-xl border border-dashed border-slate-300 p-3 text-xs text-slate-500">Drop here</div> : null}
@@ -638,7 +890,7 @@ export function EstateBatchingPanel() {
     const totalValue = selected.reduce((sum, order) => sum + order.grandTotal, 0);
 
     const payload: EstateBatch = {
-      id: editingId || form.id || `B-${Date.now()}`,
+      id: editingId || form.id || crypto.randomUUID(),
       name: form.name,
       estate: form.estate,
       estateCode: form.estateCode,
@@ -731,7 +983,7 @@ export function EstateBatchingPanel() {
 
       {notice ? <p className="mt-4 rounded-2xl bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{notice}</p> : null}
 
-      <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
+      <div className="mt-6 hidden overflow-hidden rounded-3xl border border-slate-200 lg:block">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
@@ -769,6 +1021,31 @@ export function EstateBatchingPanel() {
           </tbody>
         </table>
       </div>
+
+      <div className="mt-6 space-y-3 lg:hidden">
+        {estateBatches.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-sm text-slate-500">No estate batches yet.</div>
+        ) : (
+          estateBatches.map((batch) => (
+            <article key={batch.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{batch.name}</p>
+                  <p className="text-xs text-slate-500">{batch.estate} ({batch.estateCode})</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{batch.status}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-600">Zone: {batch.deliveryZone}</p>
+              <p className="text-sm text-slate-600">Orders: {batch.orders}</p>
+              <p className="text-sm text-slate-600">Rider: {batch.assignedRider || 'Unassigned'}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => startEdit(batch)} className="min-h-11 rounded-xl bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-700">Edit</button>
+                <button type="button" onClick={() => deleteEstateBatch(batch.id)} className="min-h-11 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">Delete</button>
+              </div>
+            </article>
+          ))
+        )}
+      </div>
     </section>
   );
 }
@@ -776,10 +1053,20 @@ export function EstateBatchingPanel() {
 export function RunnerTaskPanel() {
   const { runnerTasks, deleteRunnerTask, updateRunnerTask } = useOMSStore();
 
+  const pendingCount = runnerTasks.filter((task) => task.status === 'Pending').length;
+  const inProgressCount = runnerTasks.filter((task) => task.status === 'In Progress').length;
+  const completedCount = runnerTasks.filter((task) => task.status === 'Completed').length;
+
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
       <h2 className="text-2xl font-semibold text-slate-950">Runner Task Management</h2>
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pending</p><p className="mt-1 text-xl font-semibold text-slate-900">{pendingCount}</p></div>
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs uppercase tracking-[0.2em] text-slate-500">In Progress</p><p className="mt-1 text-xl font-semibold text-slate-900">{inProgressCount}</p></div>
+        <div className="rounded-2xl border border-slate-200 p-4"><p className="text-xs uppercase tracking-[0.2em] text-slate-500">Completed</p><p className="mt-1 text-xl font-semibold text-slate-900">{completedCount}</p></div>
+      </div>
       <div className="mt-6 space-y-3">
+        {runnerTasks.length === 0 ? <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-600">No runner tasks yet. Use Dispatch to send orders to runners.</div> : null}
         {runnerTasks.map((task) => (
           <div key={task.id} className="rounded-2xl border border-slate-200 p-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -797,6 +1084,7 @@ export function RunnerTaskPanel() {
                     <option key={status} value={status}>{status}</option>
                   ))}
                 </select>
+                <Link href={`/admin/orders/${task.orderId}`} className="inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50">Open Order</Link>
                 <button type="button" onClick={() => deleteRunnerTask(task.id)} className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">Delete</button>
               </div>
             </div>
@@ -813,7 +1101,7 @@ export function RiderAssignmentPanel() {
   return (
     <section className="rounded-[2rem] bg-white p-8 shadow-sm ring-1 ring-slate-200">
       <h2 className="text-2xl font-semibold text-slate-950">Rider Assignments</h2>
-      <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
+      <div className="mt-6 hidden overflow-hidden rounded-3xl border border-slate-200 lg:block">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
@@ -848,6 +1136,33 @@ export function RiderAssignmentPanel() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-6 space-y-3 lg:hidden">
+        {riderAssignments.map((assignment) => (
+          <article key={assignment.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-900">{assignment.orderNumber}</p>
+                <p className="text-xs text-slate-500">{assignment.assignedRider}</p>
+              </div>
+              <DispatchBadge status={assignment.status} />
+            </div>
+            <p className="mt-2 text-sm text-slate-600">{assignment.address}</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <select
+                value={assignment.status}
+                onChange={(event) => updateRiderAssignment(assignment.id, { status: event.target.value as DispatchStatus, updatedAt: new Date().toISOString() })}
+                className="min-h-11 rounded-xl border border-slate-200 px-2 text-xs"
+              >
+                {dispatchStatuses.map((status) => (
+                  <option key={status} value={status}>{status}</option>
+                ))}
+              </select>
+              <button type="button" onClick={() => deleteRiderAssignment(assignment.id)} className="min-h-11 rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">Delete</button>
+            </div>
+          </article>
+        ))}
       </div>
     </section>
   );

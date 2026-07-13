@@ -8,13 +8,18 @@ interface InputProps extends DetailedHTMLProps<InputHTMLAttributes<HTMLInputElem
 }
 
 export const Input = forwardRef<HTMLInputElement, InputProps>(function Input({ label, error, helperText, className, ...props }, ref) {
+  const inputMode = props.inputMode ?? (props.type === 'number' ? 'decimal' : props.type === 'tel' ? 'tel' : undefined);
+  const autoComplete = props.autoComplete ?? (props.type === 'tel' ? 'tel' : undefined);
+
   return (
     <label className="grid gap-2 text-sm font-medium text-slate-900">
       <span>{label}</span>
       <input
         ref={ref}
+        inputMode={inputMode}
+        autoComplete={autoComplete}
         className={cn(
-          'rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100',
+          'min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-900 transition focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-100',
           error && 'border-rose-300 focus:border-rose-500 focus:ring-rose-100',
           className
         )}

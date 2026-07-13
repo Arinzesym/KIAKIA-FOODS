@@ -1,4 +1,5 @@
 import type { CartItem, RiderAssignment, RunnerTask } from '@/lib/types';
+import { defaultBusinessSettings, loadBusinessSettings, saveBusinessSettings } from '@/lib/businessSettings';
 
 export interface AdminSettings {
   businessName: string;
@@ -7,8 +8,6 @@ export interface AdminSettings {
   serviceFee: number;
   deliveryFee: number;
 }
-
-const ADMIN_SETTINGS_KEY = 'kiakia-oms-admin-settings-v1';
 
 export function cn(...classes: Array<string | undefined | false | null>) {
   return classes.filter(Boolean).join(' ');
@@ -27,18 +26,27 @@ export function formatCsv(rows: string[][]) {
 }
 
 export function loadAdminSettings(): AdminSettings | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const saved = window.localStorage.getItem(ADMIN_SETTINGS_KEY);
-    return saved ? JSON.parse(saved) : null;
-  } catch {
-    return null;
-  }
+  const settings = loadBusinessSettings();
+  return {
+    businessName: settings.businessName,
+    whatsappNumber: settings.whatsappNumber,
+    businessAccountNumber: settings.businessAccountNumber,
+    serviceFee: settings.serviceFee,
+    deliveryFee: settings.defaultDeliveryFee
+  };
 }
 
 export function saveAdminSettings(settings: AdminSettings) {
-  if (typeof window === 'undefined') return;
-  window.localStorage.setItem(ADMIN_SETTINGS_KEY, JSON.stringify(settings));
+  const currentSettings = loadBusinessSettings();
+  saveBusinessSettings({
+    ...defaultBusinessSettings,
+    ...currentSettings,
+    businessName: settings.businessName,
+    whatsappNumber: settings.whatsappNumber,
+    businessAccountNumber: settings.businessAccountNumber,
+    serviceFee: settings.serviceFee,
+    defaultDeliveryFee: settings.deliveryFee
+  });
 }
 
 export function exportOrdersAsCsv(orders: import('./types').OrderRecord[]) {

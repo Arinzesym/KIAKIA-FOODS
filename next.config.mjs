@@ -1,5 +1,8 @@
 const nextConfig = {
-  reactStrictMode: true
+  reactStrictMode: true,
+  experimental: {
+    optimizePackageImports: ['@heroicons/react', 'recharts']
+  }
 };
 
 export default nextConfig;

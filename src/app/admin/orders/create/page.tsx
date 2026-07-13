@@ -10,6 +10,8 @@ import { calculateGrandTotal, calculateSubtotal, generateOrderId } from '@/lib/m
 import { formatCurrency } from '@/lib/utils';
 import { useOMSStore } from '@/lib/StoreContext';
 import type { OrderItem, OrderRecord } from '@/lib/types';
+import { getMarketDayProductLine, loadBusinessSettings } from '@/lib/businessSettings';
+import { calculateShoppingBudgetMetrics } from '@/lib/marginEngine';
 
 const orderCreateSchema = z.object({
   customerName: z.string().min(2),
@@ -17,6 +19,14 @@ const orderCreateSchema = z.object({
   estate: z.string().min(2),
   address: z.string().min(5),
   whatsapp: z.string().min(10),
+  marketDay: z.enum(['Weekday', 'Weekend']),
+  productLine: z.enum(['Weekly Groceries', 'Specialty Items']),
+  assignedRunner: z.string().optional(),
+  shoppingBudget: z.number().min(0),
+  actualSpend: z.number().min(0),
+  customDelivery: z.boolean().optional(),
+  customDeliveryReason: z.string().optional(),
+  customDeliveryRequestedDate: z.string().optional(),
   serviceFee: z.number().min(0),
   deliveryFee: z.number().min(0),
   additionalCharges: z.number().min(0),
@@ -35,6 +45,7 @@ type OrderCreateValues = z.infer<typeof orderCreateSchema>;
 export default function AdminOrderCreatePage() {
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
   const { addOrder } = useOMSStore();
+  const settings = loadBusinessSettings();
   const { register, control, handleSubmit, watch, formState: { errors } } = useForm<OrderCreateValues>({
     resolver: zodResolver(orderCreateSchema),
     defaultValues: {
@@ -43,8 +54,16 @@ export default function AdminOrderCreatePage() {
       estate: '',
       address: '',
       whatsapp: '',
-      serviceFee: 1200,
-      deliveryFee: 1500,
+      marketDay: 'Weekday',
+      productLine: 'Weekly Groceries',
+      assignedRunner: '',
+      shoppingBudget: 0,
+      actualSpend: 0,
+      customDelivery: false,
+      customDeliveryReason: '',
+      customDeliveryRequestedDate: '',
+      serviceFee: settings.serviceFee,
+      deliveryFee: settings.defaultDeliveryFee,
       additionalCharges: 0,
       items: [
         { id: 'I-001', name: 'Item name', quantity: 1, price: 0 }
@@ -57,10 +76,23 @@ export default function AdminOrderCreatePage() {
   const serviceFee = watch('serviceFee');
   const deliveryFee = watch('deliveryFee');
   const additionalCharges = watch('additionalCharges');
+  const marketDay = watch('marketDay');
+  const customDelivery = watch('customDelivery');
+  const shoppingBudget = watch('shoppingBudget');
+  const actualSpend = watch('actualSpend');
   const subtotal = useMemo(() => calculateSubtotal(items as OrderItem[]), [items]);
   const grandTotal = useMemo(
-    () => calculateGrandTotal(items as OrderItem[], Number(serviceFee), Number(deliveryFee), Number(additionalCharges)),
-    [items, serviceFee, deliveryFee, additionalCharges]
+    () => calculateGrandTotal(
+      items as OrderItem[],
+      Number(serviceFee),
+      Number(deliveryFee) + (customDelivery ? settings.customDeliveryFee : 0),
+      Number(additionalCharges)
+    ),
+    [items, serviceFee, deliveryFee, additionalCharges, customDelivery, settings.customDeliveryFee]
+  );
+  const budgetMetrics = useMemo(
+    () => calculateShoppingBudgetMetrics(Number(shoppingBudget), Number(actualSpend), settings.runnerBonusPercentage),
+    [actualSpend, settings.runnerBonusPercentage, shoppingBudget]
   );
 
   function onSubmit(values: OrderCreateValues) {
@@ -74,7 +106,7 @@ export default function AdminOrderCreatePage() {
     const computedGrandTotal = calculateGrandTotal(
       normalizedItems as OrderItem[],
       Number(values.serviceFee),
-      Number(values.deliveryFee),
+      Number(values.deliveryFee) + (values.customDelivery ? settings.customDeliveryFee : 0),
       Number(values.additionalCharges)
     );
 
@@ -90,11 +122,19 @@ export default function AdminOrderCreatePage() {
       estateCode: '',
       deliveryZone: '',
       address: values.address,
+      marketDay: values.marketDay,
+      productLine: values.productLine,
+      assignedRunner: values.assignedRunner || '',
+      shoppingBudget: budgetMetrics.allocatedBudget,
+      actualSpend: budgetMetrics.actualSpend,
+      shoppingMargin: budgetMetrics.shoppingMargin,
+      runnerIncentive: budgetMetrics.runnerBonus,
+      businessMargin: budgetMetrics.businessMargin,
       items: normalizedItems,
       quantity: normalizedItems.reduce((sum, item) => sum + item.quantity, 0),
       subtotal: computedSubtotal,
       serviceFee: Number(values.serviceFee),
-      deliveryFee: Number(values.deliveryFee),
+      deliveryFee: Number(values.deliveryFee) + (values.customDelivery ? settings.customDeliveryFee : 0),
       additionalCharges: Number(values.additionalCharges),
       grandTotal: computedGrandTotal,
       status: 'New',
@@ -106,6 +146,15 @@ export default function AdminOrderCreatePage() {
       batchId: '',
       dispatchId: '',
       purchaseCost: 0
+      ,
+      customDelivery: Boolean(values.customDelivery),
+      customDeliveryReason: values.customDeliveryReason,
+      customDeliveryRequestedDate: values.customDeliveryRequestedDate,
+      customDeliveryPremiumFee: values.customDelivery ? settings.customDeliveryFee : 0,
+      receiptImages: [],
+      statusTimeline: [
+        { status: 'NEW', at: new Date().toISOString(), by: 'Admin' }
+      ]
     };
 
     addOrder(newOrder);
@@ -135,7 +184,44 @@ export default function AdminOrderCreatePage() {
             <Input label="Estate" {...register('estate')} error={errors.estate?.message?.toString()} />
             <Input label="WhatsApp number" {...register('whatsapp')} error={errors.whatsapp?.message?.toString()} />
           </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="block text-sm font-medium text-slate-700">
+              Market day
+              <select
+                {...register('marketDay')}
+                className="mt-2 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2"
+              >
+                <option value="Weekday">Weekday</option>
+                <option value="Weekend">Weekend</option>
+              </select>
+            </label>
+            <label className="block text-sm font-medium text-slate-700">
+              Product line
+              <select
+                {...register('productLine')}
+                className="mt-2 min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 py-2"
+              >
+                <option value="Weekly Groceries">Weekly Groceries</option>
+                <option value="Specialty Items">Specialty Items</option>
+              </select>
+            </label>
+            <Input label="Assigned runner" placeholder="Runner name" {...register('assignedRunner')} />
+          </div>
           <Input label="Delivery address" {...register('address')} error={errors.address?.message?.toString()} />
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <Input label="Shopping budget" type="number" {...register('shoppingBudget', { valueAsNumber: true })} />
+            <Input label="Actual spend" type="number" {...register('actualSpend', { valueAsNumber: true })} />
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+            <p className="font-semibold text-slate-900">Budget engine</p>
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <p>Shopping margin: <strong>{formatCurrency(budgetMetrics.shoppingMargin)}</strong></p>
+              <p>Runner bonus ({settings.runnerBonusPercentage}%): <strong>{formatCurrency(budgetMetrics.runnerBonus)}</strong></p>
+              <p>Business margin: <strong>{formatCurrency(budgetMetrics.businessMargin)}</strong></p>
+            </div>
+          </div>
 
           <div className="space-y-4 rounded-3xl border border-slate-200 bg-slate-50 p-6">
             <div className="flex items-center justify-between">
@@ -164,6 +250,20 @@ export default function AdminOrderCreatePage() {
             <Input label="Additional charges" type="number" {...register('additionalCharges', { valueAsNumber: true })} error={errors.additionalCharges?.message?.toString()} />
           </div>
 
+          <div className="grid gap-4 md:grid-cols-3">
+            <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700">
+              <input type="checkbox" {...register('customDelivery')} />
+              Custom delivery
+            </label>
+            <Input label="Reason" placeholder="Why custom delivery is needed" {...register('customDeliveryReason')} />
+            <Input label="Requested date" type="date" {...register('customDeliveryRequestedDate')} />
+          </div>
+          {customDelivery ? (
+            <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-700">
+              Custom delivery premium fee applied: {formatCurrency(settings.customDeliveryFee)}
+            </p>
+          ) : null}
+
           <Button type="submit" className="w-full">Create order</Button>
           {createdOrderId ? <p className="rounded-3xl bg-emerald-50 p-4 text-sm text-emerald-800">Order created successfully: <strong>{createdOrderId}</strong></p> : null}
         </div>
@@ -181,11 +281,16 @@ export default function AdminOrderCreatePage() {
             <p className="text-sm text-slate-400">Fees</p>
             <div className="flex items-center justify-between text-base text-slate-100"><span>Service</span><span>{formatCurrency(Number(serviceFee))}</span></div>
             <div className="flex items-center justify-between text-base text-slate-100"><span>Delivery</span><span>{formatCurrency(Number(deliveryFee))}</span></div>
+            <div className="flex items-center justify-between text-base text-slate-100"><span>Custom</span><span>{formatCurrency(customDelivery ? settings.customDeliveryFee : 0)}</span></div>
             <div className="flex items-center justify-between text-base text-slate-100"><span>Additional</span><span>{formatCurrency(Number(additionalCharges))}</span></div>
           </div>
           <div className="rounded-3xl bg-brand-600 p-6 text-white">
             <p className="text-sm uppercase tracking-[0.24em] text-brand-100">Grand total</p>
             <p className="mt-3 text-4xl font-semibold">{formatCurrency(grandTotal)}</p>
+          </div>
+          <div className="rounded-3xl bg-slate-900/80 p-6">
+            <p className="text-sm uppercase tracking-[0.2em] text-brand-100">Cycle</p>
+            <p className="mt-2 text-base text-white">{marketDay} / {getMarketDayProductLine(marketDay)}</p>
           </div>
         </aside>
       </form>

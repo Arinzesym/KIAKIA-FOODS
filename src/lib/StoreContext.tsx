@@ -182,6 +182,14 @@ function updateEstateSnapshot(orders: OrderRecord[], estates: EstateRecord[]) {
   });
 }
 
+function generateUuid() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [orders, setOrders] = useState<OrderRecord[]>(mockOrders);
   const [customers, setCustomers] = useState<CustomerProfile[]>(mockCustomers);
@@ -195,16 +203,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [shouldRetryConnection, setShouldRetryConnection] = useState(true);
 
   const isConnected = !usingFallback;
-
-  const runMutation = useCallback((payload: Record<string, unknown>) => {
-    if (usingFallback) {
-      return;
-    }
-
-    void postOmsMutation(payload).catch(() => {
-      setUsingFallback(true);
-    });
-  }, [usingFallback]);
 
   const applySnapshot = useCallback((snapshot: Snapshot) => {
     setOrders(snapshot.orders);
@@ -223,6 +221,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setUsingFallback(false);
     setShouldRetryConnection(true);
   }, [applySnapshot]);
+
+  const runMutation = useCallback((payload: Record<string, unknown>) => {
+    if (usingFallback) {
+      return;
+    }
+
+    void postOmsMutation(payload).catch(() => {
+      // Keep the shared backend as source of truth; do not downgrade to device-local mode on single mutation errors.
+      void refreshSnapshot().catch(() => {
+        // Ignore refresh failures here to avoid breaking user actions.
+      });
+    });
+  }, [refreshSnapshot, usingFallback]);
 
   useEffect(() => {
     let active = true;
@@ -316,6 +327,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => window.clearInterval(interval);
   }, [refreshSnapshot, shouldRetryConnection, usingFallback]);
 
+  useEffect(() => {
+    if (usingFallback || supabaseClient) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void refreshSnapshot().catch(() => {
+        // Periodic best-effort pull when realtime client is unavailable.
+      });
+    }, 30000);
+
+    return () => window.clearInterval(interval);
+  }, [refreshSnapshot, usingFallback]);
+
   const value = useMemo(
     () => ({
       orders,
@@ -395,7 +420,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const dispatchId = order.dispatchId || `DSP-${Date.now()}`;
+        const dispatchId = order.dispatchId || generateUuid();
         const dispatchStatus: DispatchStatus = assignedRider.trim() ? 'Assigned' : 'Unassigned';
 
         const dispatchRecord: DispatchRecord = {
@@ -419,7 +444,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         });
 
         const assignment: RiderAssignment = {
-          id: `RA-${dispatchId}`,
+          id: generateUuid(),
           orderId: order.id,
           orderNumber: order.orderNumber,
           customerName: order.customerName,
@@ -455,7 +480,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         });
 
         const notification: NotificationRecord = {
-          id: `N-${Date.now()}`,
+          id: generateUuid(),
           type: 'Rider Assignment',
           title: 'Order sent to dispatch',
           message: `${order.orderNumber} moved to dispatch queue${assignedRider ? ` and assigned to ${assignedRider}` : ''}.`,
@@ -532,7 +557,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
                 : 'Rider Assignment';
 
         const notification: NotificationRecord = {
-          id: `N-${Date.now()}`,
+          id: generateUuid(),
           type: eventType,
           title: `Dispatch status: ${nextStatus}`,
           message: `${dispatchRecord.orderNumber} is now ${nextStatus}.`,
@@ -549,7 +574,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       },
       createNotification(type: NotificationType, title: string, message: string, refs?: { orderId?: string; batchId?: string }) {
         const notification: NotificationRecord = {
-          id: `N-${Date.now()}`,
+          id: generateUuid(),
           type,
           title,
           message,

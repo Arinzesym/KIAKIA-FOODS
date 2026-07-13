@@ -50,10 +50,18 @@ export function OrderBuilder() {
     setItems((current) => {
       const next = [...current];
       if (field === 'name') next[index].name = value;
-      if (field === 'quantity') next[index].quantity = Number(value);
+      if (field === 'quantity') next[index].quantity = Math.max(1, Number(value));
       if (field === 'price') next[index].price = Number(value);
       return next;
     });
+  };
+
+  const incrementQuantity = (index: number) => {
+    setItems((current) => current.map((item, idx) => idx === index ? { ...item, quantity: item.quantity + 1 } : item));
+  };
+
+  const decrementQuantity = (index: number) => {
+    setItems((current) => current.map((item, idx) => idx === index ? { ...item, quantity: Math.max(1, item.quantity - 1) } : item));
   };
 
   const addItem = () => setItems((current) => [...current, { name: '', quantity: 1, price: 0 }] as any);
@@ -63,17 +71,17 @@ export function OrderBuilder() {
   const whatsappUrl = `https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER?.replace(/[+\s]/g, '') ?? '2348000000000'}?text=${encodeURIComponent(orderMessage)}`;
 
   return (
-    <section className="rounded-[2rem] bg-white p-8 shadow-sm">
-      <div className="grid gap-10 lg:grid-cols-[0.85fr_0.45fr]">
+    <section className="rounded-[2rem] bg-white p-5 shadow-sm sm:p-8">
+      <div className="grid gap-8 lg:grid-cols-[0.85fr_0.45fr]">
         <div className="space-y-6">
           <div>
             <p className="text-sm uppercase tracking-[0.24em] text-brand-600">Smart order builder</p>
-            <h2 className="mt-3 text-3xl font-semibold text-slate-950">Build a shopping list and submit it through WhatsApp.</h2>
+            <h2 className="mt-3 text-2xl font-semibold text-slate-950 sm:text-3xl">Build a shopping list and submit it through WhatsApp.</h2>
           </div>
           <div className="grid gap-4 rounded-3xl border border-slate-200 bg-slate-50 p-6">
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Customer Name" value={name} onChange={(event) => setName(event.target.value)} />
-              <Input label="Phone" value={phone} onChange={(event) => setPhone(event.target.value)} />
+              <Input label="Phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} />
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Estate" value={estate} onChange={(event) => setEstate(event.target.value)} />
@@ -83,23 +91,36 @@ export function OrderBuilder() {
           <div className="space-y-4">
             {items.map((item, index) => (
               <div key={index} className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-                <div className="grid gap-4 md:grid-cols-[1.3fr_0.9fr_0.9fr]">
+                <div className="grid gap-4 md:grid-cols-[1.3fr_1fr_0.9fr]">
                   <Input label="Product name" value={item.name} onChange={(event) => updateItem(index, 'name', event.target.value)} />
-                  <Input label="Quantity" type="number" value={item.quantity} onChange={(event) => updateItem(index, 'quantity', event.target.value)} />
+                  <div className="grid gap-2 text-sm font-medium text-slate-900">
+                    <span>Quantity</span>
+                    <div className="grid grid-cols-[auto_1fr_auto] gap-2">
+                      <button type="button" onClick={() => decrementQuantity(index)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xl font-bold text-slate-700">-</button>
+                      <input
+                        type="number"
+                        min={1}
+                        value={item.quantity}
+                        onChange={(event) => updateItem(index, 'quantity', event.target.value)}
+                        className="min-h-11 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-center text-slate-900"
+                      />
+                      <button type="button" onClick={() => incrementQuantity(index)} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-xl font-bold text-slate-700">+</button>
+                    </div>
+                  </div>
                   <Input label="Unit price" type="number" value={item.price} onChange={(event) => updateItem(index, 'price', event.target.value)} />
                 </div>
                 <div className="mt-5 flex items-center justify-between gap-4 text-slate-600">
                   <p>Item total: {formatCurrency(item.quantity * item.price)}</p>
-                  <button type="button" className="text-sm font-semibold text-rose-600 hover:text-rose-700" onClick={() => removeItem(index)}>
+                  <button type="button" className="inline-flex min-h-11 items-center text-sm font-semibold text-rose-600 hover:text-rose-700" onClick={() => removeItem(index)}>
                     Remove item
                   </button>
                 </div>
               </div>
             ))}
-            <button type="button" className="text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={addItem}>+ Add product</button>
+            <button type="button" className="inline-flex min-h-11 items-center text-sm font-semibold text-brand-600 hover:text-brand-700" onClick={addItem}>+ Add product</button>
           </div>
         </div>
-        <div className="space-y-6 rounded-3xl border border-slate-200 bg-slate-50 p-6">
+        <div className="sticky bottom-3 z-20 space-y-6 rounded-3xl border border-slate-200 bg-slate-50 p-6 shadow-lg lg:bottom-auto lg:top-24 lg:z-auto lg:shadow-none">
           <div className="space-y-3">
             <p className="text-sm uppercase tracking-[0.24em] text-brand-600">Live order calculator</p>
             <div className="grid gap-3 rounded-3xl bg-white p-4">
@@ -117,7 +138,7 @@ export function OrderBuilder() {
             <Input label="Delivery fee (₦)" type="number" value={deliveryFee} onChange={(event) => setDeliveryFee(Number(event.target.value))} />
             <Input label="Additional charges (₦)" type="number" value={additionalCharges} onChange={(event) => setAdditionalCharges(Number(event.target.value))} />
           </div>
-          <a href={whatsappUrl} target="_blank" rel="noreferrer" className={cn('inline-flex items-center justify-center rounded-2xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700')}>
+          <a href={whatsappUrl} target="_blank" rel="noreferrer" className={cn('inline-flex min-h-12 w-full items-center justify-center rounded-2xl bg-brand-600 px-5 py-3 text-base font-semibold text-white transition hover:bg-brand-700')}>
             Send order to WhatsApp
           </a>
         </div>
@@ -142,7 +163,7 @@ export function OrderHistoryTable() {
         </div>
         <span className="rounded-full bg-brand-50 px-4 py-2 text-sm text-brand-700">Total records {orders.length}</span>
       </div>
-      <div className="mt-6 overflow-hidden rounded-3xl border border-slate-200">
+      <div className="mt-6 hidden overflow-hidden rounded-3xl border border-slate-200 lg:block">
         <table className="min-w-full divide-y divide-slate-200 text-left text-sm">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
@@ -163,6 +184,21 @@ export function OrderHistoryTable() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-6 space-y-3 lg:hidden">
+        {orders.map((order) => (
+          <article key={order.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold text-slate-900">{order.id}</p>
+                <p className="text-xs text-slate-500">{order.date}</p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-700">{order.status}</span>
+            </div>
+            <p className="mt-3 text-sm font-semibold text-slate-900">{formatCurrency(order.total)}</p>
+          </article>
+        ))}
       </div>
     </section>
   );

@@ -1,4 +1,13 @@
 export type OrderStatus =
+  | 'NEW'
+  | 'CONFIRMED'
+  | 'RUNNER_ASSIGNED'
+  | 'SHOPPING'
+  | 'AT_STAGING'
+  | 'BATCHED'
+  | 'OUT_FOR_DELIVERY'
+  | 'DELIVERED'
+  | 'COMPLETED'
   | 'New'
   | 'Awaiting Rider'
   | 'Assigned'
@@ -14,6 +23,30 @@ export type PaymentStatus = 'Pending' | 'Paid' | 'Partially Paid' | 'Failed' | '
 export type DispatchStatus = 'Unassigned' | 'Assigned' | 'Picked Up' | 'In Transit' | 'Delivered' | 'Completed' | 'Failed';
 
 export type BatchStatus = 'Pending' | 'Assigned' | 'In Progress' | 'Completed';
+
+export type MarketDay = 'Weekday' | 'Weekend';
+export type ProductLine = 'Weekly Groceries' | 'Specialty Items';
+
+export interface OrderStatusTimelineEntry {
+  status: OrderStatus;
+  at: string;
+  by?: string;
+  note?: string;
+}
+
+export interface ShoppingBudgetMetrics {
+  allocatedBudget: number;
+  actualSpend: number;
+  shoppingMargin: number;
+  runnerBonus: number;
+  businessMargin: number;
+}
+
+export interface DeliveryMetrics {
+  dispatchCost: number;
+  collectedDeliveryFees: number;
+  deliveryMargin: number;
+}
 
 export interface CartItem {
   id?: string;
@@ -40,6 +73,15 @@ export interface OrderRecord {
   address: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
+  marketDay?: MarketDay;
+  productLine?: ProductLine;
+  runnerAssignmentId?: string;
+  assignedRunner?: string;
+  shoppingBudget?: number;
+  actualSpend?: number;
+  shoppingMargin?: number;
+  runnerIncentive?: number;
+  businessMargin?: number;
   items: OrderItem[];
   quantity: number;
   subtotal: number;
@@ -51,6 +93,16 @@ export interface OrderRecord {
   assignedRider: string;
   dispatchId?: string;
   purchaseCost: number;
+  deliveryBatchId?: string;
+  customDelivery?: boolean;
+  customDeliveryReason?: string;
+  customDeliveryRequestedDate?: string;
+  customDeliveryPremiumFee?: number;
+  deliveryMargin?: number;
+  receiptImages?: string[];
+  unavailableItems?: string[];
+  suggestedSubstitutions?: string[];
+  statusTimeline?: OrderStatusTimelineEntry[];
   notes?: string;
   deliveryTimeMinutes?: number;
   createdAt: string;
@@ -75,12 +127,105 @@ export interface EstateBatch {
 export interface RunnerTask {
   id: string;
   orderId: string;
+  orderNumber?: string;
   task: string;
   status: string;
   assignedTo: string;
+  marketDay?: MarketDay;
+  productLine?: ProductLine;
+  estate?: string;
+  shoppingList?: string[];
+  allocatedBudget?: number;
+  actualSpend?: number;
+  unavailableItems?: string[];
+  suggestedSubstitutions?: string[];
+  receiptImages?: string[];
+  shoppingCompletedAt?: string;
+  deliveredToStagingAt?: string;
   purchaseCost: number;
   notes: string;
   updatedAt: string;
+}
+
+export interface RunnerProfile {
+  id: string;
+  userId?: string;
+  name: string;
+  phone: string;
+  email: string;
+  active: boolean;
+  assignedOrderIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RunnerAssignment {
+  id: string;
+  orderId: string;
+  runnerId: string;
+  marketDay: MarketDay;
+  allocatedBudget: number;
+  actualSpend: number;
+  shoppingMargin: number;
+  runnerBonus: number;
+  businessMargin: number;
+  status: 'Assigned' | 'Shopping' | 'At Staging' | 'Completed';
+  receiptImages: string[];
+  unavailableItems: string[];
+  suggestedSubstitutions: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SpecialtyProduct {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  photo?: string;
+  availability: 'In Stock' | 'Low Stock' | 'Out of Stock';
+  leadTimeDays: number;
+  minimumQuantity: number;
+  unitPrice: number;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductCatalogEntry {
+  id: string;
+  name: string;
+  line: ProductLine;
+  unitPrice: number;
+  active: boolean;
+  specialty?: SpecialtyProduct;
+}
+
+export interface DeliveryBatch {
+  id: string;
+  marketDay: MarketDay;
+  estate: string;
+  deliveryWindow: string;
+  orderIds: string[];
+  assignedRider: string;
+  dispatchCost: number;
+  collectedDeliveryFees: number;
+  deliveryMargin: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BusinessSettings {
+  businessName: string;
+  whatsappNumber: string;
+  businessAccountNumber: string;
+  serviceFee: number;
+  defaultDeliveryFee: number;
+  customDeliveryFee: number;
+  runnerBonusPercentage: number;
+  marketDays: Array<{ key: MarketDay; label: string; defaultSourcingDay: string }>;
+  deliveryWindows: string[];
+  currency: string;
 }
 
 export interface RiderAssignment {

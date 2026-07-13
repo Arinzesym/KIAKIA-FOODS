@@ -164,6 +164,103 @@ Production schema for OMS + Dispatch + Estate Management.
 - created_at: timestamptz
 - updated_at: timestamptz
 
+## OMS v2 Extensions
+
+### runners
+- id: uuid, primary key
+- user_id: uuid references users(id)
+- phone: text
+- active: boolean
+- created_at: timestamptz
+- updated_at: timestamptz
+
+### runner_assignments
+- id: uuid, primary key
+- order_id: text references orders(id)
+- runner_id: uuid references runners(id)
+- status: text (`Assigned`, `Shopping`, `At Staging`, `Completed`)
+- allocated_budget: numeric
+- actual_spend: numeric
+- shopping_margin: numeric
+- runner_bonus: numeric
+- business_margin: numeric
+- receipt_images: text[]
+- unavailable_items: text[]
+- suggested_substitutions: text[]
+- created_at: timestamptz
+- updated_at: timestamptz
+
+### products
+- id: uuid, primary key
+- name: text
+- line: text (`Weekly Groceries`, `Specialty Items`)
+- unit_price: numeric
+- active: boolean
+
+### specialty_products
+- id: uuid, primary key
+- product_id: uuid references products(id)
+- category: text
+- description: text
+- photo: text
+- availability: text (`In Stock`, `Low Stock`, `Out of Stock`)
+- lead_time_days: integer
+- minimum_quantity: integer
+
+### delivery_batches
+- id: text, primary key
+- estate: text
+- market_day: text (`Weekday`, `Weekend`)
+- delivery_window: text
+- assigned_rider_id: uuid references users(id)
+- dispatch_cost: numeric
+- collected_delivery_fees: numeric
+- delivery_margin: numeric
+
+### business_settings
+- id: uuid, primary key
+- service_fee: numeric
+- default_delivery_fee: numeric
+- custom_delivery_fee: numeric
+- runner_bonus_percentage: numeric
+- market_days: jsonb
+- delivery_windows: text[]
+- currency: text
+
+### orders (new columns)
+- market_day: text
+- product_line: text
+- assigned_runner_id: uuid references users(id)
+- shopping_budget: numeric
+- actual_spend: numeric
+- shopping_margin: numeric
+- runner_incentive: numeric
+- business_margin: numeric
+- delivery_batch_id: text
+- custom_delivery: boolean
+- custom_delivery_reason: text
+- custom_delivery_requested_date: date
+- custom_delivery_premium_fee: numeric
+- delivery_margin: numeric
+- receipt_images: text[]
+- unavailable_items: text[]
+- suggested_substitutions: text[]
+- status_timeline: jsonb
+
+### runner_tasks (new columns)
+- order_number: text
+- market_day: text
+- product_line: text
+- estate: text
+- shopping_list: text[]
+- allocated_budget: numeric
+- actual_spend: numeric
+- unavailable_items: text[]
+- suggested_substitutions: text[]
+- receipt_images: text[]
+- shopping_completed_at: timestamptz
+- delivered_to_staging_at: timestamptz
+
 ## Notes
 - All mutable tables use `updated_at` triggers.
 - All domain tables are RLS-enabled with service-role full-access policy baseline.

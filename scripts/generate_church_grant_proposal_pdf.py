@@ -116,15 +116,15 @@ def build_story():
     logo_path = next((path for path in LOGO_CANDIDATES if path.exists()), None)
 
     # Cover page for strong first-impression branding.
-    story.append(Spacer(1, 0.9 * cm))
+    story.append(Spacer(1, 2.1 * cm))
     if logo_path:
-        story.append(Image(str(logo_path), width=9.2 * cm, height=9.2 * cm, hAlign="CENTER"))
-        story.append(Spacer(1, 0.65 * cm))
+        story.append(Image(str(logo_path), width=8.8 * cm, height=8.8 * cm, hAlign="CENTER"))
+        story.append(Spacer(1, 0.85 * cm))
     story.append(Paragraph("KiaKia Foods", cover_title_style))
     story.append(Paragraph("Business Proposal for Church Grant Support", cover_subtitle_style))
     story.append(Paragraph("Submitted To: CYON, Holy Family Catholic Church, Life Camp, Abuja", cover_subtitle_style))
     story.append(Paragraph(f"Date: {date.today().strftime('%d %B %Y')}", cover_subtitle_style))
-    story.append(Spacer(1, 1.1 * cm))
+    story.append(Spacer(1, 2.3 * cm))
     story.append(PageBreak())
 
     story.append(Paragraph("BUSINESS PROPOSAL FOR CHURCH GRANT SUPPORT", title_style))
@@ -362,6 +362,15 @@ def _draw_page_decor(canvas: Canvas, doc):
     canvas.restoreState()
 
 
+def _draw_cover_decor(canvas: Canvas, doc):
+    page_width, _ = A4
+    canvas.saveState()
+    canvas.setStrokeColor(THEME["line"])
+    canvas.setLineWidth(0.7)
+    canvas.line(doc.leftMargin + 3.5 * cm, 2.0 * cm, page_width - doc.rightMargin - 3.5 * cm, 2.0 * cm)
+    canvas.restoreState()
+
+
 def main():
     doc = SimpleDocTemplate(
         OUTPUT_FILE,
@@ -373,7 +382,7 @@ def main():
         title="KiaKia Foods Church Grant Business Proposal",
         author="KiaKia Foods",
     )
-    doc.build(build_story(), onFirstPage=_draw_page_decor, onLaterPages=_draw_page_decor)
+    doc.build(build_story(), onFirstPage=_draw_cover_decor, onLaterPages=_draw_page_decor)
     print(f"Created {OUTPUT_FILE}")
 
 

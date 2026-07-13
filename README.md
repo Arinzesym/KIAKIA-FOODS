@@ -1,6 +1,6 @@
 # KiaKia Foods Business Operating System
 
-A production-ready SaaS-style web application scaffold for KiaKia Foods built with Next.js, TypeScript, Tailwind CSS, Shadcn-style UI components, Supabase, PostgreSQL, Recharts, React Hook Form, and Zod.
+A production ready SaaS style web application scaffold for KiaKia Foods built with Next.js, TypeScript, Tailwind CSS, Shadcn style UI components, Supabase, PostgreSQL, Recharts, React Hook Form, and Zod.
 
 ## Features
 - Customer marketing site with Home, About, Services, and Contact

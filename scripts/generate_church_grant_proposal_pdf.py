@@ -95,7 +95,7 @@ def build_story():
     story = []
     logo_path = next((path for path in LOGO_CANDIDATES if path.exists()), None)
     if logo_path:
-        story.append(Image(str(logo_path), width=2.8 * cm, height=2.8 * cm, hAlign="CENTER"))
+        story.append(Image(str(logo_path), width=4.0 * cm, height=4.0 * cm, hAlign="CENTER"))
         story.append(Spacer(1, 0.25 * cm))
 
     story.append(Paragraph("BUSINESS PROPOSAL FOR CHURCH GRANT SUPPORT", title_style))

@@ -4,6 +4,7 @@ from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
+from reportlab.pdfgen.canvas import Canvas
 from reportlab.platypus import Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 
@@ -12,6 +13,16 @@ LOGO_CANDIDATES = [
     Path("public/exports/logo.png"),
     Path("public/logo.png"),
 ]
+
+THEME = {
+    "brand_green": colors.HexColor("#184D2F"),
+    "brand_blue": colors.HexColor("#0F3D91"),
+    "text": colors.HexColor("#222222"),
+    "muted": colors.HexColor("#666666"),
+    "soft_green": colors.HexColor("#F3F8F4"),
+    "soft_blue": colors.HexColor("#F4F7FF"),
+    "line": colors.HexColor("#D9E3DD"),
+}
 
 
 def money(value: int) -> str:
@@ -24,34 +35,59 @@ def build_story():
     title_style = ParagraphStyle(
         "TitleCustom",
         parent=styles["Title"],
-        fontSize=22,
-        leading=26,
-        textColor=colors.HexColor("#184D2F"),
-        spaceAfter=14,
+        fontName="Helvetica-Bold",
+        fontSize=21,
+        leading=25,
+        textColor=THEME["brand_green"],
+        alignment=1,
+        spaceAfter=10,
+    )
+    business_name_style = ParagraphStyle(
+        "BusinessName",
+        parent=styles["Heading1"],
+        fontName="Helvetica-Bold",
+        fontSize=15,
+        leading=19,
+        textColor=THEME["text"],
+        alignment=1,
+        spaceAfter=8,
     )
     sub_style = ParagraphStyle(
         "SubTitle",
         parent=styles["Normal"],
+        fontName="Helvetica",
         fontSize=11,
-        leading=14,
-        textColor=colors.HexColor("#555555"),
+        leading=15,
+        textColor=THEME["muted"],
+        alignment=1,
         spaceAfter=14,
     )
     h_style = ParagraphStyle(
         "SectionHeader",
         parent=styles["Heading2"],
-        fontSize=14,
-        leading=18,
-        textColor=colors.HexColor("#0F3D91"),
-        spaceBefore=10,
-        spaceAfter=6,
+        fontName="Helvetica-Bold",
+        fontSize=13,
+        leading=17,
+        textColor=THEME["brand_blue"],
+        spaceBefore=12,
+        spaceAfter=5,
     )
     p_style = ParagraphStyle(
         "BodyCustom",
         parent=styles["BodyText"],
-        fontSize=10.5,
-        leading=15,
-        spaceAfter=6,
+        fontName="Times-Roman",
+        fontSize=10.7,
+        leading=15.5,
+        textColor=THEME["text"],
+        spaceAfter=7,
+    )
+    small_style = ParagraphStyle(
+        "SmallText",
+        parent=styles["BodyText"],
+        fontName="Helvetica",
+        fontSize=9,
+        leading=12,
+        textColor=THEME["muted"],
     )
 
     ask_amount = 2_000_000
@@ -59,11 +95,11 @@ def build_story():
     story = []
     logo_path = next((path for path in LOGO_CANDIDATES if path.exists()), None)
     if logo_path:
-      story.append(Image(str(logo_path), width=3.0 * cm, height=3.0 * cm))
-      story.append(Spacer(1, 0.2 * cm))
+        story.append(Image(str(logo_path), width=2.8 * cm, height=2.8 * cm, hAlign="CENTER"))
+        story.append(Spacer(1, 0.25 * cm))
 
     story.append(Paragraph("BUSINESS PROPOSAL FOR CHURCH GRANT SUPPORT", title_style))
-    story.append(Paragraph("KiaKia Foods", ParagraphStyle("bizname", parent=styles["Heading1"], fontSize=16, textColor=colors.HexColor("#222222"), spaceAfter=4)))
+    story.append(Paragraph("KiaKia Foods", business_name_style))
     story.append(
         Paragraph(
             f"Date: {date.today().strftime('%d %B %Y')}<br/>"
@@ -73,6 +109,36 @@ def build_story():
             sub_style,
         )
     )
+    story.append(Spacer(1, 0.1 * cm))
+
+    snapshot_rows = [
+        ["Proposal Snapshot", ""],
+        ["Requested Grant", money(ask_amount)],
+        ["Implementation Window", "12 Months"],
+        ["Primary Focus", "Food access, youth livelihoods, delivery reliability"],
+    ]
+    snapshot_table = Table(snapshot_rows, colWidths=[5.5 * cm, 12.5 * cm])
+    snapshot_table.setStyle(
+        TableStyle(
+            [
+                ("SPAN", (0, 0), (1, 0)),
+                ("BACKGROUND", (0, 0), (1, 0), THEME["brand_green"]),
+                ("TEXTCOLOR", (0, 0), (1, 0), colors.white),
+                ("FONTNAME", (0, 0), (1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
+                ("FONTNAME", (1, 1), (1, -1), "Helvetica"),
+                ("BACKGROUND", (0, 1), (1, -1), THEME["soft_green"]),
+                ("GRID", (0, 0), (1, -1), 0.3, THEME["line"]),
+                ("LEFTPADDING", (0, 0), (1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (1, -1), 7),
+                ("TOPPADDING", (0, 0), (1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (1, -1), 6),
+                ("VALIGN", (0, 0), (1, -1), "MIDDLE"),
+            ]
+        )
+    )
+    story.append(snapshot_table)
+    story.append(Spacer(1, 0.25 * cm))
 
     story.append(Paragraph("Recipient Context (Research Snapshot)", h_style))
     story.append(
@@ -164,19 +230,19 @@ def build_story():
     fund_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#184D2F")),
+                ("BACKGROUND", (0, 0), (-1, 0), THEME["brand_green"]),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
                 ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#888888")),
-                ("BACKGROUND", (0, 1), (-1, -2), colors.HexColor("#F6FBF7")),
+                ("GRID", (0, 0), (-1, -1), 0.3, THEME["line"]),
+                ("BACKGROUND", (0, 1), (-1, -2), THEME["soft_green"]),
                 ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#EAF4EC")),
+                ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#E6F1E8")),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("LEFTPADDING", (0, 0), (-1, -1), 6),
-                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
     )
@@ -196,12 +262,16 @@ def build_story():
     finance_table.setStyle(
         TableStyle(
             [
-                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0F3D91")),
+                ("BACKGROUND", (0, 0), (-1, 0), THEME["brand_blue"]),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("GRID", (0, 0), (-1, -1), 0.35, colors.HexColor("#888888")),
+                ("GRID", (0, 0), (-1, -1), 0.3, THEME["line"]),
                 ("ALIGN", (1, 1), (1, -1), "RIGHT"),
-                ("BACKGROUND", (0, 1), (-1, -1), colors.HexColor("#F7F9FF")),
+                ("BACKGROUND", (0, 1), (-1, -1), THEME["soft_blue"]),
+                ("LEFTPADDING", (0, 0), (-1, -1), 7),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 7),
+                ("TOPPADDING", (0, 0), (-1, -1), 6),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ]
         )
     )
@@ -249,25 +319,42 @@ def build_story():
     )
 
     story.append(Spacer(1, 0.8 * cm))
-    story.append(Paragraph("Prepared by:", p_style))
-    story.append(Paragraph("______________________________", p_style))
-    story.append(Paragraph("KiaKia Foods Management Team", p_style))
+    story.append(Paragraph("Prepared by:", small_style))
+    story.append(Paragraph("______________________________", ParagraphStyle("signature", parent=small_style, fontName="Helvetica", textColor=THEME["text"])))
+    story.append(Paragraph("KiaKia Foods Management Team", ParagraphStyle("signature_name", parent=small_style, fontName="Helvetica-Bold", textColor=THEME["text"])))
 
     return story
+
+
+def _draw_page_decor(canvas: Canvas, doc):
+    page_width, page_height = A4
+    canvas.saveState()
+
+    canvas.setStrokeColor(THEME["line"])
+    canvas.setLineWidth(0.7)
+    canvas.line(doc.leftMargin, page_height - 1.15 * cm, page_width - doc.rightMargin, page_height - 1.15 * cm)
+    canvas.line(doc.leftMargin, 1.15 * cm, page_width - doc.rightMargin, 1.15 * cm)
+
+    canvas.setFillColor(THEME["muted"])
+    canvas.setFont("Helvetica", 8.5)
+    canvas.drawString(doc.leftMargin, 0.8 * cm, "KiaKia Foods | Church Grant Proposal")
+    canvas.drawRightString(page_width - doc.rightMargin, 0.8 * cm, f"Page {doc.page}")
+
+    canvas.restoreState()
 
 
 def main():
     doc = SimpleDocTemplate(
         OUTPUT_FILE,
         pagesize=A4,
-        rightMargin=1.6 * cm,
-        leftMargin=1.6 * cm,
-        topMargin=1.5 * cm,
-        bottomMargin=1.5 * cm,
+        rightMargin=1.5 * cm,
+        leftMargin=1.5 * cm,
+        topMargin=1.55 * cm,
+        bottomMargin=1.55 * cm,
         title="KiaKia Foods Church Grant Business Proposal",
         author="KiaKia Foods",
     )
-    doc.build(build_story())
+    doc.build(build_story(), onFirstPage=_draw_page_decor, onLaterPages=_draw_page_decor)
     print(f"Created {OUTPUT_FILE}")
 
 
